@@ -1,0 +1,32 @@
+interface MatchScoreBadgeProps {
+  score?: number | null;
+  size?: 'sm' | 'md';
+}
+
+export function MatchScoreBadge({ score, size = 'sm' }: MatchScoreBadgeProps) {
+  if (score == null) return null;
+
+  const rounded = Math.round(score);
+  const isSmall = size === 'sm';
+
+  let colorClass: string;
+  if (rounded >= 70) {
+    colorClass = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  } else if (rounded >= 40) {
+    colorClass = 'bg-amber-100 text-amber-700 border-amber-200';
+  } else {
+    colorClass = 'bg-red-100 text-red-700 border-red-200';
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 font-semibold border rounded-full ${colorClass} ${
+        isSmall ? 'text-xs px-2 py-0.5' : 'text-sm px-3 py-1'
+      }`}
+      title="Match score against your profile"
+    >
+      <span className={isSmall ? 'text-[10px]' : 'text-xs'}>⚡</span>
+      {rounded}%
+    </span>
+  );
+}
