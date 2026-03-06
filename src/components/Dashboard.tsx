@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { KanbanBoard } from './KanbanBoard';
+import { HomeView } from './HomeView';
 import { AddJobModal } from './AddJobModal';
 import { JobDetailModal } from './JobDetailModal';
 import { UserProfileModal } from './UserProfileModal';
@@ -25,6 +26,8 @@ export function Dashboard() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [scrapedData, setScrapedData] = useState<any>(null);
+
+  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Kanban board'>('Dashboard');
 
   const { filters, setFilter, clearFilters, filteredJobs, availableCompanies } = useJobFilters(jobs);
 
@@ -134,22 +137,37 @@ export function Dashboard() {
         onProfileClick={() => setShowProfile(true)}
         userInitials={userInitials}
       />
-      <BoardHeader userInitials={userInitials} />
-      <FilterBar 
-        filters={filters} 
-        setFilter={setFilter} 
-        availableCompanies={availableCompanies} 
-        onClear={clearFilters}
-        userInitials={userInitials}
+      <BoardHeader 
+        userInitials={userInitials} 
+        currentTab={activeTab} 
+        onTabChange={setActiveTab} 
       />
+      
+      {activeTab === 'Kanban board' && (
+        <FilterBar 
+          filters={filters} 
+          setFilter={setFilter} 
+          availableCompanies={availableCompanies} 
+          onClear={clearFilters}
+          userInitials={userInitials}
+        />
+      )}
 
       <main className="py-6 overflow-hidden">
-        <KanbanBoard
-          jobs={filteredJobs}
-          loading={initialLoad}
-          onSelectJob={setSelectedJob}
-          onUpdate={handleRefresh}
-        />
+        {activeTab === 'Dashboard' ? (
+          <HomeView 
+            jobs={jobs} 
+            onViewBoard={() => setActiveTab('Kanban board')} 
+            onSelectJob={setSelectedJob}
+          />
+        ) : (
+          <KanbanBoard
+            jobs={filteredJobs}
+            loading={initialLoad}
+            onSelectJob={setSelectedJob}
+            onUpdate={handleRefresh}
+          />
+        )}
       </main>
 
       <FloatingActionButton 
