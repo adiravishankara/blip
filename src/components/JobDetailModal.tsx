@@ -6,7 +6,7 @@ import {
   X, ExternalLink, Calendar, MapPin, DollarSign, Users, Send, Flag,
   FileText, MoreVertical, Trash2, Copy, Wifi, Building2, GitBranch,
   Clock, Briefcase, User, Link2, ClipboardList, ChevronDown, ChevronUp,
-  Box, Share2, Eye, Layout, Bolt,
+  Box, Share2, Eye, Layout, Bolt, Edit2
 } from 'lucide-react';
 import { MatchScoreBadge } from './MatchScoreBadge';
 
@@ -242,6 +242,11 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
 
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  
+  // Header Editing States
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
 
   useEffect(() => {
     loadComments();
@@ -334,7 +339,7 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-[1240px] h-[90vh] overflow-hidden flex flex-col font-sans">
         
-        {/* Header */}
+        {/* Header Bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
@@ -373,19 +378,94 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
           
           {/* Main Area */}
           <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">{localJob.job_title}</h1>
+            
+            {/* Title & Company Info (Editable) */}
+            <div className="mb-6 group/header-meta">
+              {isEditingTitle ? (
+                <input
+                  autoFocus
+                  type="text"
+                  defaultValue={localJob.job_title}
+                  onBlur={async e => {
+                    setIsEditingTitle(false);
+                    const val = e.target.value.trim();
+                    if (val && val !== localJob.job_title) await updateField({ job_title: val });
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                  className="text-2xl font-bold text-slate-900 mb-2 w-full border-b border-blue-400 outline-none"
+                />
+              ) : (
+                <h1 
+                  onClick={() => setIsEditingTitle(true)}
+                  className="text-2xl font-bold text-slate-900 mb-2 cursor-pointer hover:bg-slate-50 rounded px-1 -ml-1 transition"
+                >
+                  {localJob.job_title}
+                </h1>
+              )}
+
               <div className="flex items-center gap-2 text-sm text-slate-500">
-                <span className="font-medium text-slate-700">{localJob.company}</span>
-                <span>•</span>
-                {localJob.job_url ? (
-                  <a href={localJob.job_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 font-medium">
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    JD Link
-                  </a>
+                {isEditingCompany ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    defaultValue={localJob.company}
+                    onBlur={async e => {
+                      setIsEditingCompany(false);
+                      const val = e.target.value.trim();
+                      if (val && val !== localJob.company) await updateField({ company: val });
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                    className="font-medium text-slate-700 border-b border-blue-400 outline-none"
+                  />
                 ) : (
-                  <span className="text-slate-400 italic">No link added</span>
+                  <span 
+                    onClick={() => setIsEditingCompany(true)}
+                    className="font-medium text-slate-700 cursor-pointer hover:bg-slate-50 rounded px-1 -ml-1 transition"
+                  >
+                    {localJob.company}
+                  </span>
                 )}
+                
+                <span>•</span>
+                
+                {isEditingUrl ? (
+                  <input
+                    autoFocus
+                    type="url"
+                    defaultValue={localJob.job_url ?? ''}
+                    onBlur={async e => {
+                      setIsEditingUrl(false);
+                      const val = e.target.value.trim();
+                      if (val !== (localJob.job_url ?? '')) await updateField({ job_url: val || null });
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                    className="text-blue-600 border-b border-blue-400 outline-none min-w-[200px]"
+                    placeholder="Enter JD Link..."
+                  />
+                ) : (
+                  <div 
+                    onClick={() => setIsEditingUrl(true)}
+                    className="flex items-center gap-1 cursor-pointer hover:bg-slate-50 rounded px-1 transition"
+                  >
+                    {localJob.job_url ? (
+                      <div className="flex items-center gap-1">
+                        <a 
+                          href={localJob.job_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-blue-600 hover:underline font-medium flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          JD Link
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">No link added</span>
+                    )}
+                  </div>
+                )}
+
                 <span>•</span>
                 <span className="text-xs">{Math.floor((new Date().getTime() - new Date(localJob.date_added).getTime()) / (1000 * 60 * 60 * 24))}d ago</span>
               </div>

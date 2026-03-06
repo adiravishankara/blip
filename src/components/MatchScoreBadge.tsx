@@ -1,6 +1,6 @@
 interface MatchScoreBadgeProps {
   score?: number | null;
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
 }
 
 export function MatchScoreBadge({ score, size = 'sm' }: MatchScoreBadgeProps) {
@@ -21,6 +21,7 @@ export function MatchScoreBadge({ score, size = 'sm' }: MatchScoreBadgeProps) {
   return (
     <span
       className={`inline-flex items-center gap-1 font-semibold border rounded-full ${colorClass} ${
+        size === 'xs' ? 'text-[9px] px-1 py-0' :
         isSmall ? 'text-xs px-2 py-0.5' : 'text-sm px-3 py-1'
       }`}
       title="Match score against your profile"
