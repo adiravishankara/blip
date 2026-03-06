@@ -4,6 +4,8 @@ import { Calendar, Flag, ExternalLink } from 'lucide-react';
 interface JobCardProps {
   job: Job;
   onClick: () => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
 }
 
 const PRIORITY_ICON = {
@@ -13,7 +15,7 @@ const PRIORITY_ICON = {
   critical: <Flag className="w-3.5 h-3.5 text-red-500 fill-red-500" />,
 };
 
-export function JobCard({ job, onClick }: JobCardProps) {
+export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProps) {
   const daysSinceAdded = Math.floor(
     (new Date().getTime() - new Date(job.date_added).getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -21,8 +23,18 @@ export function JobCard({ job, onClick }: JobCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded border border-gray-200 p-3 shadow-sm hover:bg-blue-50/30 transition-all cursor-pointer group select-none"
+      className={`bg-white rounded border p-3 shadow-sm transition-all group select-none relative cursor-pointer
+        ${selectionMode && isSelected ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-blue-50/30'}
+      `}
     >
+      {selectionMode && (
+        <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors shadow-sm bg-white z-10
+          ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}
+        `}>
+          {isSelected && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         {/* Title and Company */}
         <div>

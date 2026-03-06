@@ -18,9 +18,12 @@ interface KanbanBoardProps {
   loading: boolean;
   onSelectJob: (job: Job) => void;
   onUpdate: () => void;
+  selectionMode?: boolean;
+  selectedJobs?: Set<string>;
+  toggleJobSelection?: (jobId: string) => void;
 }
 
-export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate }: KanbanBoardProps) {
+export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMode, selectedJobs, toggleJobSelection }: KanbanBoardProps) {
   const [draggedJobId, setDraggedJobId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<JobStatus | null>(null);
 
@@ -29,6 +32,10 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate }: KanbanBoar
   };
 
   const handleDragStart = (e: React.DragEvent, jobId: string) => {
+    if (selectionMode) {
+      e.preventDefault();
+      return;
+    }
     setDraggedJobId(jobId);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -108,15 +115,25 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate }: KanbanBoar
               {columnJobs.map(job => (
                 <div
                   key={job.id}
-                  draggable
+                  draggable={!selectionMode}
                   onDragStart={(e) => handleDragStart(e, job.id)}
-                  className={`cursor-grab active:cursor-grabbing transition-transform ${
+                  className={`transition-transform ${
+                    selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+                  } ${
                     draggedJobId === job.id ? 'opacity-40 scale-95' : 'hover:-translate-y-1'
                   }`}
                 >
                   <JobCard
                     job={job}
-                    onClick={() => onSelectJob(job)}
+                    onClick={() => {
+                      if (selectionMode && toggleJobSelection) {
+                        toggleJobSelection(job.id);
+                      } else {
+                        onSelectJob(job);
+                      }
+                    }}
+                    selectionMode={selectionMode}
+                    isSelected={selectedJobs?.has(job.id)}
                   />
                 </div>
               ))}

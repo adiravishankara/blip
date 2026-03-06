@@ -8,27 +8,27 @@ export interface Job {
   user_id: string;
   status: JobStatus;
   priority: JobPriority;
-  job_url?: string;
+  job_url?: string | null;
   job_title: string;
   company: string;
-  location?: string;
-  job_description?: string;
-  keywords?: string[];
-  team?: string;
-  pay_scale?: string;
-  days_posted?: number;
+  location?: string | null;
+  job_description?: string | null;
+  keywords?: string[] | null;
+  team?: string | null;
+  pay_scale?: string | null;
+  days_posted?: number | null;
   date_added: string;
-  resume_link?: string;
-  cover_letter_link?: string;
-  notes?: string;
-  contact_person?: string;
-  referred_by?: string;
+  resume_link?: string | null;
+  cover_letter_link?: string | null;
+  notes?: string | null;
+  contact_person?: string | null;
+  referred_by?: string | null;
   // Extended fields
-  work_mode?: WorkMode;
-  application_deadline?: string;  // ISO date string
-  interview_date?: string;         // ISO datetime string
-  offer_amount?: number;
-  match_score?: number;            // 0-100
+  work_mode?: WorkMode | null;
+  application_deadline?: string | null;  // ISO date string
+  interview_date?: string | null;         // ISO datetime string
+  offer_amount?: number | null;
+  match_score?: number | null;            // 0-100
   created_at: string;
   updated_at: string;
 }

@@ -15,6 +15,7 @@ import { useJobFilters } from '../hooks/useJobFilters';
 import { Job } from '../types';
 import { enqueueScrapingJob } from '../services/scraper';
 import { useScraping } from '../context/ScrapingContext';
+import { utils, writeFile } from 'xlsx';
 
 export function Dashboard() {
   const { user, profile, profileLoaded } = useAuth();
@@ -28,6 +29,9 @@ export function Dashboard() {
   const [scrapedData, setScrapedData] = useState<any>(null);
 
   const [activeTab, setActiveTab] = useState<'Dashboard' | 'Kanban board'>('Dashboard');
+
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
 
   const { filters, setFilter, clearFilters, filteredJobs, availableCompanies } = useJobFilters(jobs);
 
@@ -110,6 +114,58 @@ export function Dashboard() {
     }
   };
 
+  const toggleJobSelection = (jobId: string) => {
+    setSelectedJobs(prev => {
+      const next = new Set(prev);
+      if (next.has(jobId)) {
+        next.delete(jobId);
+      } else {
+        next.add(jobId);
+      }
+      return next;
+    });
+  };
+
+  const handleExportSelected = () => {
+    const jobsToExport = jobs.filter(j => selectedJobs.has(j.id));
+    if (jobsToExport.length === 0) {
+      alert("No jobs selected.");
+      return;
+    }
+
+    const data = jobsToExport.map(job => [
+      job.job_url || '',
+      job.job_title || '',
+      job.company || '',
+      job.location || '',
+      job.team || '',
+      '', // Description
+      job.match_score || '', // Relevance
+      job.status || '', // Status
+      job.notes || '', // Notes
+      job.date_added ? new Date(job.date_added).toLocaleDateString() : '', // Date Added
+      job.resume_link || '', // Resume
+      job.referred_by || '', // Referral
+      '', // Recruiter
+      job.contact_person || '', // Hiring Manager
+    ]);
+
+    const worksheet = utils.aoa_to_sheet([
+      [
+        'Link', 'Job Title', 'Company', 'Location', 'Field', 'Description', 
+        'Relevance to my profile (from my perspective)', 'Status', 'Notes', 
+        'Date Added', 'Resume', 'Referral', 'Recruiter', 'Hiring Manager'
+      ],
+      ...data
+    ]);
+    const workbook = utils.book_new();
+    utils.book_append_sheet(workbook, worksheet, 'Jobs');
+    writeFile(workbook, 'Tracker.xlsx');
+
+    setSelectionMode(false);
+    setSelectedJobs(new Set());
+  };
+
   if (!profileLoaded) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -142,6 +198,10 @@ export function Dashboard() {
       <BoardHeader 
         userInitials={userInitials} 
         currentTab={activeTab} 
+        onExportClick={() => {
+          setSelectionMode(true);
+          setSelectedJobs(new Set());
+        }}
       />
       
       {activeTab === 'Kanban board' && (
@@ -167,6 +227,9 @@ export function Dashboard() {
             loading={initialLoad}
             onSelectJob={setSelectedJob}
             onUpdate={handleRefresh}
+            selectionMode={selectionMode}
+            selectedJobs={selectedJobs}
+            toggleJobSelection={toggleJobSelection}
           />
         )}
       </main>
@@ -180,6 +243,29 @@ export function Dashboard() {
         }} 
         onLinkSubmit={handleLinkSubmit} 
       />
+
+      {selectionMode && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-6 z-50 animate-in slide-in-from-bottom border border-gray-700">
+          <span className="font-medium">{selectedJobs.size} jobs selected</span>
+          <div className="h-5 w-px bg-gray-700"></div>
+          <button 
+            onClick={() => {
+              setSelectionMode(false);
+              setSelectedJobs(new Set());
+            }} 
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleExportSelected}
+            disabled={selectedJobs.size === 0}
+            className="bg-white disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-100 transition-colors shadow-sm"
+          >
+            Done
+          </button>
+        </div>
+      )}
 
       {showAddModal && (
         <AddJobModal
