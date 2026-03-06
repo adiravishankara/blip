@@ -36,3 +36,10 @@
 │ Secret Key │ 850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed6eda37307425907 │
 │ Region     │ local                                                            │
 ╰────────────┴──────────────────────────────────────────────────────────────────╯
+
+
+tested roles so far:
+
+- https://jobs.apple.com/en-us/details/200606667-0836/engineering-lab-technician?team=HRDWR
+- http://jobs.apple.com/en-us/details/200624190-3337/aiml-sr-machine-learning-engineer-data-and-ml-innovation?team=MLAI
+- https://job-boards.greenhouse.io/figureai/jobs/4613442006?source=LinkedIn

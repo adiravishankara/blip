@@ -1,6 +1,8 @@
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
+import { ScrapingWorker } from './components/ScrapingWorker';
+import { ScrapingProvider } from './context/ScrapingContext';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -13,13 +15,20 @@ function AppContent() {
     );
   }
 
-  return user ? <Dashboard /> : <Auth />;
+  return (
+    <>
+      {user ? <Dashboard /> : <Auth />}
+      {user && <ScrapingWorker />}
+    </>
+  );
 }
 
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ScrapingProvider>
+        <AppContent />
+      </ScrapingProvider>
     </AuthProvider>
   );
 }

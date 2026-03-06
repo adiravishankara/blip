@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Link as LinkIcon, Edit3, X } from 'lucide-react';
+import { Plus, Link as LinkIcon, Edit3, X, Loader2 } from 'lucide-react';
+import { useScraping } from '../context/ScrapingContext';
 
 interface FloatingActionButtonProps {
   onManualClick: () => void;
@@ -12,6 +13,7 @@ export function FloatingActionButton({ onManualClick, onLinkSubmit, isOpen, onTo
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [link, setLink] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const { jobs, processingCount, setIsExpanded } = useScraping();
 
   useEffect(() => {
     if (showLinkInput && inputRef.current) {
@@ -28,6 +30,8 @@ export function FloatingActionButton({ onManualClick, onLinkSubmit, isOpen, onTo
       onToggle(false);
     }
   };
+
+  const hasJobs = jobs.length > 0;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-row-reverse items-center">
@@ -61,15 +65,30 @@ export function FloatingActionButton({ onManualClick, onLinkSubmit, isOpen, onTo
           </form>
         </div>
       ) : (
-        <>
+        <div className="relative">
           <button
             onClick={() => onToggle(!isOpen)}
             className={`w-14 h-14 bg-blue-600 rounded-full shadow-xl flex items-center justify-center text-white transition-all duration-300 z-10 ${isOpen ? 'rotate-45' : ''} hover:bg-blue-700 hover:scale-110 active:scale-95`}
           >
-            <Plus className="w-8 h-8" />
+            {processingCount > 0 && !isOpen ? (
+              <Loader2 className="w-8 h-8 animate-spin" />
+            ) : (
+              <Plus className="w-8 h-8" />
+            )}
           </button>
 
-          <div className={`flex flex-row-reverse items-center gap-3 mr-4 transition-all duration-300 ${isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10 pointer-events-none'}`}>
+          {/* Queue Badge - Now clickable to open worker */}
+          {hasJobs && !isOpen && (
+            <button
+              onClick={() => setIsExpanded(true)}
+              className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white flex items-center justify-center animate-in zoom-in duration-200 hover:bg-red-600 hover:scale-110 transition-all cursor-pointer z-20"
+              title="View scraping queue"
+            >
+              {jobs.length}
+            </button>
+          )}
+
+          <div className={`absolute bottom-0 right-full flex flex-row-reverse items-center gap-3 mr-4 transition-all duration-300 ${isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10 pointer-events-none'}`}>
             <button
               onClick={() => {
                 onManualClick();
@@ -96,7 +115,7 @@ export function FloatingActionButton({ onManualClick, onLinkSubmit, isOpen, onTo
               <span className="text-sm font-semibold text-gray-700 group-hover:text-blue-600">By link</span>
             </button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

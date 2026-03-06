@@ -12,18 +12,18 @@ import { FilterBar } from './layout/FilterBar';
 import { FloatingActionButton } from './FloatingActionButton';
 import { useJobFilters } from '../hooks/useJobFilters';
 import { Job } from '../types';
-import { extractJobFromUrl } from '../services/scraper';
+import { enqueueScrapingJob } from '../services/scraper';
+import { useScraping } from '../context/ScrapingContext';
 
 export function Dashboard() {
   const { user, profile, profileLoaded } = useAuth();
+  const { refreshQueue } = useScraping();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [scraping, setScraping] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [scrapedData, setScrapedData] = useState<any>(null);
 
   const { filters, setFilter, clearFilters, filteredJobs, availableCompanies } = useJobFilters(jobs);
@@ -31,12 +31,45 @@ export function Dashboard() {
   useEffect(() => {
     if (user) {
       loadJobs();
-    }
-  }, [user, refreshKey]);
 
-  const loadJobs = async () => {
+      // Robust Polling Fallback
+      // Fetch jobs every 5 seconds nicely handling missing Realtime events
+      const interval = setInterval(() => {
+        loadJobs();
+      }, 5000);
+
+      // Listen for real-time changes to the jobs table
+      console.log('[Dashboard] Subscribing to jobs changes for user:', user.id);
+      const channel = supabase
+        .channel('jobs_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'jobs',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('[Dashboard] Realtime update received:', payload.eventType);
+            loadJobs();
+          }
+        )
+        .subscribe((status) => {
+          console.log('[Dashboard] Subscription status:', status);
+        });
+
+      return () => {
+        clearInterval(interval);
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user]); // Removed refreshKey from dependencies to avoid full unmount/remount cycles
+
+  const loadJobs = async (silent = true) => {
     try {
-      setLoading(true);
+      if (!silent) setInitialLoad(true);
+      
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
@@ -47,11 +80,14 @@ export function Dashboard() {
     } catch (error) {
       console.error('Error loading jobs:', error);
     } finally {
-      setLoading(false);
+      setInitialLoad(false);
     }
   };
 
-  const handleRefresh = () => setRefreshKey(prev => prev + 1);
+  const handleRefresh = () => {
+    // Force a fresh, completely silent update when user manually updates something (like dragging a card)
+    loadJobs(true);
+  };
 
   const handleAddSuccess = () => {
     setShowAddModal(false);
@@ -61,26 +97,13 @@ export function Dashboard() {
 
   const handleLinkSubmit = async (link: string) => {
     try {
-      setScraping(true);
-      const data = await extractJobFromUrl(link);
-      
-      setScrapedData({
-        job_title: data.job_title,
-        company: data.company_name,
-        job_url: link,
-        location: data.location,
-        pay_scale: data.compensation,
-        team: data.team_name,
-        job_description: data.description,
-      });
-      setShowAddModal(true);
+      if (!user) return;
+      await enqueueScrapingJob(link, user.id);
+      refreshQueue(); // Immediately inform context
+      setFabOpen(false);
     } catch (error) {
       console.error('Error extracting job:', error);
-      alert('Failed to extract job details. Opening manual entry.');
-      setScrapedData({ job_url: link });
-      setShowAddModal(true);
-    } finally {
-      setScraping(false);
+      alert('Failed to add job to queue.');
     }
   };
 
@@ -103,14 +126,6 @@ export function Dashboard() {
     <div className="min-h-screen bg-white">
       {needsOnboarding && <OnboardingModal onComplete={handleRefresh} />}
       
-      {scraping && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] flex items-center justify-center">
-          <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-sm font-semibold text-gray-700">Analyzing job post with Firecrawl...</p>
-          </div>
-        </div>
-      )}
 
       <Header 
         searchValue={filters.search} 
@@ -131,7 +146,7 @@ export function Dashboard() {
       <main className="py-6 overflow-hidden">
         <KanbanBoard
           jobs={filteredJobs}
-          loading={loading}
+          loading={initialLoad}
           onSelectJob={setSelectedJob}
           onUpdate={handleRefresh}
         />
