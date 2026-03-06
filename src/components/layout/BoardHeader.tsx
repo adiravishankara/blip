@@ -3,11 +3,9 @@ import { Share2, Zap, Maximize2, MoreHorizontal } from 'lucide-react';
 interface BoardHeaderProps {
   userInitials?: string;
   currentTab: 'Dashboard' | 'Kanban board';
-  onTabChange: (tab: 'Dashboard' | 'Kanban board') => void;
 }
 
-export function BoardHeader({ userInitials = 'JD', currentTab, onTabChange }: BoardHeaderProps) {
-  const tabs: ('Dashboard' | 'Kanban board')[] = ['Dashboard', 'Kanban board'];
+export function BoardHeader({ userInitials = 'JD', currentTab }: BoardHeaderProps) {
 
   return (
     <div className="bg-white px-8 pt-4 pb-2">
@@ -47,21 +45,6 @@ export function BoardHeader({ userInitials = 'JD', currentTab, onTabChange }: Bo
             <MoreHorizontal className="w-5 h-5 text-gray-600" />
           </button>
         </div>
-      </div>
-
-      <div className="flex items-center border-b border-gray-200">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => onTabChange(tab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px
-              ${tab === currentTab 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'}`}
-          >
-            {tab}
-          </button>
-        ))}
       </div>
     </div>
   );

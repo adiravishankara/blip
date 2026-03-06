@@ -136,11 +136,12 @@ export function Dashboard() {
         onCreateClick={() => setFabOpen(true)}
         onProfileClick={() => setShowProfile(true)}
         userInitials={userInitials}
+        currentTab={activeTab}
+        onTabChange={setActiveTab}
       />
       <BoardHeader 
         userInitials={userInitials} 
         currentTab={activeTab} 
-        onTabChange={setActiveTab} 
       />
       
       {activeTab === 'Kanban board' && (

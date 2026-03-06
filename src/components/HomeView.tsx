@@ -23,6 +23,46 @@ const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export function HomeView({ jobs, onViewBoard, onSelectJob }: HomeViewProps) {
   const [history, setHistory] = useState<any[]>([]);
   const [mapFilter, setMapFilter] = useState<JobStatus | 'all'>('all');
+  const [statusTimeFilter, setStatusTimeFilter] = useState<'all' | 'week' | 'month' | 'year'>('all');
+
+  const statusData = useMemo(() => {
+    let filteredJobs = jobs;
+    const now = new Date();
+
+    if (statusTimeFilter !== 'all') {
+      filteredJobs = jobs.filter(j => {
+        const jobDate = new Date(j.created_at || j.date_added);
+        const diffDays = (now.getTime() - jobDate.getTime()) / (1000 * 60 * 60 * 24); 
+        
+        if (statusTimeFilter === 'week') return diffDays <= 7;
+        if (statusTimeFilter === 'month') return diffDays <= 30;
+        if (statusTimeFilter === 'year') return diffDays <= 365;
+        return true;
+      });
+    }
+
+    const counts: Record<string, number> = {
+      'Saved': 0,
+      'Applying': 0,
+      'Applied': 0,
+      'Interviewing': 0,
+      'Accepted': 0,
+      'Rejected': 0,
+      'Ghosted': 0
+    };
+
+    filteredJobs.forEach(j => {
+      const statusLabel = j.status.charAt(0).toUpperCase() + j.status.slice(1);
+      if (counts[statusLabel] !== undefined) {
+        counts[statusLabel]++;
+      }
+    });
+
+    return Object.entries(counts)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [jobs, statusTimeFilter]);
 
   useEffect(() => {
     async function loadHistory() {
@@ -169,7 +209,7 @@ export function HomeView({ jobs, onViewBoard, onSelectJob }: HomeViewProps) {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Main Chart - Timeline */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-6">
@@ -216,6 +256,60 @@ export function HomeView({ jobs, onViewBoard, onSelectJob }: HomeViewProps) {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* Status Pie Chart */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-gray-900">Pipeline Status</h3>
+            <select 
+              className="text-xs font-medium border-none bg-gray-50 rounded-lg py-1 px-2 focus:ring-0 active:bg-gray-100 cursor-pointer"
+              value={statusTimeFilter}
+              onChange={(e) => setStatusTimeFilter(e.target.value as any)}
+            >
+              <option value="all">All Time</option>
+              <option value="week">Past Week</option>
+              <option value="month">Past Month</option>
+              <option value="year">Past Year</option>
+            </select>
+          </div>
+          <div className="h-[250px] w-full flex items-center justify-center">
+            {statusData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {statusData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+               <div className="text-gray-400 text-sm">No data for this time period</div>
+            )}
+          </div>
+          {statusData.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 gap-x-2 gap-y-3">
+              {statusData.map((entry, index) => (
+                <div key={entry.name} className="flex items-center justify-between text-sm pr-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <span className="text-gray-600 truncate" title={entry.name}>{entry.name}</span>
+                  </div>
+                  <span className="font-semibold text-gray-900 ml-2">{entry.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Role Pie Chart */}

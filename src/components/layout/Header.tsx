@@ -7,6 +7,8 @@ interface HeaderProps {
   onCreateClick?: () => void;
   onProfileClick?: () => void;
   userInitials?: string;
+  currentTab: 'Dashboard' | 'Kanban board';
+  onTabChange: (tab: 'Dashboard' | 'Kanban board') => void;
 }
 
 export function Header({ 
@@ -14,7 +16,9 @@ export function Header({
   searchValue, 
   onCreateClick, 
   onProfileClick,
-  userInitials = 'U' 
+  userInitials = 'U',
+  currentTab,
+  onTabChange
 }: HeaderProps) {
   const { user, signOut } = useAuth();
 
@@ -22,17 +26,22 @@ export function Header({
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 sticky top-0 z-50">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 cursor-pointer">
-          <img src="/dist/assets/blip_logo.png" alt="Blip Logo" className="w-8 h-8 object-contain" />
+          <img src="/dist/assets/blip_logo.png" alt="Blip Logo" className="w-16 h-16 object-contain" />
           {/* <span className="font-bold text-gray-800 text-lg tracking-tight">blip</span> */}
         </div>
 
-        <nav className="hidden md:flex items-center gap-4 h-full">
-          {['Dashboard'].map((item) => (
+        <nav className="hidden md:flex items-center gap-4 h-full ml-4">
+          {(['Dashboard', 'Kanban board'] as const).map((tab) => (
             <button
-              key={item}
-              className="text-gray-600 hover:text-blue-600 font-medium text-sm transition-colors py-1 px-2 rounded hover:bg-gray-100"
+              key={tab}
+              onClick={() => onTabChange(tab)}
+              className={`font-medium text-sm transition-colors py-1.5 px-3 rounded-md ${
+                tab === currentTab 
+                  ? 'text-blue-700 bg-blue-50 font-semibold' 
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+              }`}
             >
-              {item}
+              {tab}
             </button>
           ))}
           <button 
