@@ -44,8 +44,7 @@ export function BoardHeader({ userInitials = 'JD' }: BoardHeaderProps) {
 
       <div className="flex items-center border-b border-gray-200">
         {[
-          'Summary', 
-          'Timeline', 
+          'Dashboard',  
           'Kanban board'
         ].map((tab) => (
           <button
