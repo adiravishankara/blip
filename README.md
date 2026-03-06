@@ -1,4 +1,4 @@
-# 🌊 Blip
+# Blip
 
 **The Ultimate Job Application Tracker & Automation Engine**
 
@@ -6,18 +6,26 @@ Blip is a high-performance, Jira-inspired job hunting dashboard designed to take
 
 ---
 
-## ✨ Features
+## Preview
 
-- **🚀 Smart Scraping Engine**: Powered by Firecrawl. Paste a job URL and watch Blip extract the title, company, description, and salary details automatically.
-- **📋 Jira-Style Kanban Board**: Drag-and-drop your applications through stages. From "Backlog" to "Offer", keep your pipeline organized.
-- **📊 Real-time Analytics**: A dedicated dashboard featuring success rate donuts, application timelines, and role distribution charts.
-- **🔄 Background Processing**: A dedicated worker handles scraping jobs concurrently, ensuring your UI stays snappy.
-- **👤 Profile Management**: Store your resume links, cover letters, and career preferences in one secure place.
-- **🌍 Global Reach**: integrated city/country lookups for accurate job location tracking.
+| Dashboard | Job Details | Kanban Board |
+| :---: | :---: | :---: |
+| ![Dashboard](public/assets/dashboard.png) | ![Job Detail](public/assets/job.png) | ![Kanban Board](public/assets/kanban.png) |
 
 ---
 
-## 🛠️ Tech Stack
+## Features
+
+- **Smart Scraping Engine**: Powered by Firecrawl. Paste a job URL and watch Blip extract the title, company, description, and salary details automatically.
+- **Jira-Style Kanban Board**: Drag-and-drop your applications through stages. From "Backlog" to "Offer", keep your pipeline organized.
+- **Real-time Analytics**: A dedicated dashboard featuring success rate donuts, application timelines, and role distribution charts.
+- **Background Processing**: A dedicated worker handles scraping jobs concurrently, ensuring your UI stays snappy.
+- **Profile Management**: Store your resume links, cover letters, and career preferences in one secure place.
+- **Global Reach**: integrated city/country lookups for accurate job location tracking.
+
+---
+
+## Tech Stack
 
 - **Core**: [React 18](https://reactjs.org/) + [TypeScript](https://www.typescriptlang.org/)
 - **Build Tool**: [Vite](https://vitejs.dev/)
@@ -29,7 +37,7 @@ Blip is a high-performance, Jira-inspired job hunting dashboard designed to take
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 - Node.js (v18 or higher)
@@ -70,7 +78,7 @@ npm run dev
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 - `/src/components`: UI components (Modals, Kanban, Dashboard)
 - `/src/hooks`: Custom React hooks for business logic
@@ -80,7 +88,7 @@ npm run dev
 
 ---
 
-## 📝 License
+## License
 MIT
 
 Built with ❤️ by [Aditya Ravishankar](https://github.com/adiravishankara)
