@@ -1,4 +1,5 @@
-import { Search, ChevronDown, ListFilter, LayoutGrid, SlidersHorizontal } from 'lucide-react';
+import { useState } from 'react';
+import { Search, ChevronDown } from 'lucide-react';
 import { FilterState } from '../../hooks/useJobFilters';
 import { JobPriority } from '../../types';
 
@@ -7,9 +8,12 @@ interface FilterBarProps {
   setFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   availableCompanies: string[];
   onClear: () => void;
+  userInitials?: string;
 }
 
-export function FilterBar({ filters, setFilter, availableCompanies, onClear }: FilterBarProps) {
+export function FilterBar({ filters, setFilter, availableCompanies, onClear, userInitials = 'JD' }: FilterBarProps) {
+  const [showQuickFilters, setShowQuickFilters] = useState(false);
+
   return (
     <div className="bg-white px-8 py-4 flex flex-wrap items-center gap-4 border-b border-gray-100">
       <div className="relative">
@@ -24,29 +28,14 @@ export function FilterBar({ filters, setFilter, availableCompanies, onClear }: F
       </div>
 
       <div className="flex -space-x-1">
-        {[1, 2].map((i) => (
-          <div 
-            key={i} 
-            className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold uppercase
-              ${i === 1 ? 'bg-indigo-500' : 'bg-emerald-500'}`}
-          >
-            {i === 1 ? 'JD' : 'AV'}
-          </div>
-        ))}
-        <button className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-gray-500 text-xs hover:bg-gray-200 transition-colors">
-          +
-        </button>
+        <div 
+          className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold uppercase bg-indigo-500"
+        >
+          {userInitials}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
-        <select
-          multiple
-          className="sr-only"
-          onChange={(e) => {
-            const values = Array.from(e.target.selectedOptions).map(o => o.value);
-            setFilter('companies', values);
-          }}
-        />
         <div className="relative group">
           <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm font-medium text-gray-700 transition-colors">
             Company
@@ -111,36 +100,56 @@ export function FilterBar({ filters, setFilter, availableCompanies, onClear }: F
 
         <div className="h-6 w-px bg-gray-200 mx-2" />
 
-        <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm font-medium text-gray-700 transition-colors">
-          Quick filters
-          <ChevronDown className="w-4 h-4" />
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowQuickFilters(!showQuickFilters)}
+            className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm font-medium text-gray-700 transition-colors"
+          >
+            Quick filters
+            <ChevronDown className="w-4 h-4" />
+          </button>
+          {showQuickFilters && (
+            <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-xl py-2 z-20 animate-in fade-in zoom-in-95 duration-200">
+              <div className="px-4 py-1.5 border-b border-gray-50 mb-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Quick Shortcuts</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setFilter('priorities', ['high', 'critical']);
+                  setShowQuickFilters(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                🔥 High Priority roles
+              </button>
+              <button 
+                onClick={() => {
+                  setFilter('status', ['interviewing']);
+                  setShowQuickFilters(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                📅 Mock interviews ready
+              </button>
+              <button 
+                onClick={() => {
+                  setFilter('hasResume', true);
+                  setShowQuickFilters(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                📄 Resume submitted
+              </button>
+            </div>
+          )}
+        </div>
 
         <button 
           onClick={onClear}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900 ml-auto"
+          className="text-sm font-medium text-gray-500 hover:text-gray-900 ml-2"
         >
           Clear all
         </button>
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
-        <label className="text-xs font-bold text-gray-500 mr-1 uppercase">Group by:</label>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-sm font-medium text-gray-700 transition-colors">
-          Status
-          <ChevronDown className="w-4 h-4" />
-        </button>
-        <div className="flex items-center border border-gray-200 rounded overflow-hidden">
-          <button className="p-1.5 bg-gray-100 text-gray-900 border-r border-gray-200">
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-50 text-gray-500">
-            <ListFilter className="w-4 h-4" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-50 text-gray-500 border-l border-gray-200">
-            <SlidersHorizontal className="w-4 h-4" />
-          </button>
-        </div>
       </div>
     </div>
   );

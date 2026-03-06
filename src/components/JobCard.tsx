@@ -1,6 +1,5 @@
 import { Job } from '../types';
-import { MapPin, Calendar, DollarSign, Flag, Wifi, Building2, GitBranch, ExternalLink, FileText } from 'lucide-react';
-import { MatchScoreBadge } from './MatchScoreBadge';
+import { Calendar, Flag, ExternalLink } from 'lucide-react';
 
 interface JobCardProps {
   job: Job;
@@ -12,12 +11,6 @@ const PRIORITY_ICON = {
   medium: <Flag className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />,
   high: <Flag className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />,
   critical: <Flag className="w-3.5 h-3.5 text-red-500 fill-red-500" />,
-};
-
-const WORK_MODE_ICON = {
-  remote: <Wifi className="w-3.5 h-3.5" />,
-  hybrid: <GitBranch className="w-3.5 h-3.5" />,
-  onsite: <Building2 className="w-3.5 h-3.5" />,
 };
 
 export function JobCard({ job, onClick }: JobCardProps) {
@@ -55,56 +48,15 @@ export function JobCard({ job, onClick }: JobCardProps) {
           </div>
         </div>
 
-        {/* Labels/Keywords */}
-        {job.keywords && job.keywords.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {job.keywords.slice(0, 3).map((kw, i) => (
-              <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium rounded uppercase tracking-tighter">
-                {kw}
-              </span>
-            ))}
-            {job.keywords.length > 3 && (
-              <span className="text-[10px] text-gray-400 font-medium leading-none self-center">
-                +{job.keywords.length - 3}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Small Metadata */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-          {job.location && (
-            <div className="flex items-center gap-1 text-[11px] text-gray-500">
-              <MapPin className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate max-w-[120px]">{job.location}</span>
-            </div>
-          )}
-          {job.pay_scale && (
-            <div className="flex items-center gap-1 text-[11px] text-gray-500">
-              <DollarSign className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{job.pay_scale}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Footer: Priority, Flags, ID */}
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100/50">
+        {/* Small Metadata - Days on board and Priority only */}
+        <div className="flex items-center justify-between mt-1 pt-2 border-t border-gray-100/50">
           <div className="flex items-center gap-2">
             <div>{PRIORITY_ICON[job.priority]}</div>
-            {job.resume_link && <FileText className="w-3.5 h-3.5 text-blue-500" />}
-            {job.work_mode && (
-              <div className="text-gray-400">
-                {WORK_MODE_ICON[job.work_mode]}
-              </div>
-            )}
           </div>
           
-          <div className="flex items-center gap-2">
-            {job.match_score != null && <MatchScoreBadge score={job.match_score} size="xs" />}
-            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-              <Calendar className="w-2.5 h-2.5" />
-              <span>{daysSinceAdded}d</span>
-            </div>
+          <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+            <Calendar className="w-2.5 h-2.5" />
+            <span>{daysSinceAdded}d</span>
           </div>
         </div>
       </div>

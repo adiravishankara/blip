@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Job, JobStatus, JobComment, JobPriority, WorkMode, JobStatusHistoryEntry } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { resolveResumeUrl } from '../utils/storage';
 import {
   X, ExternalLink, Calendar, MapPin, DollarSign, Users, Send, Flag,
   FileText, MoreVertical, Trash2, Copy, Wifi, Building2, GitBranch,
   Clock, Briefcase, User, Link2, ClipboardList, ChevronDown, ChevronUp,
   Box, Share2, Eye, Layout, Bolt, Edit2
 } from 'lucide-react';
-import { MatchScoreBadge } from './MatchScoreBadge';
 
 interface JobDetailModalProps {
   job: Job;
@@ -342,10 +342,13 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
         {/* Header Bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-              <MatchScoreBadge score={localJob.match_score} size="sm" />
-              <span>JOB / {shortId}</span>
-              <button className="p-1 hover:bg-slate-100 rounded transition"><Link2 className="w-3 h-3" /></button>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+              <span>Spaces</span>
+              <span className="mx-0.5 text-slate-300">/</span>
+              <span>Job</span>
+              <span className="mx-0.5 text-slate-300">/</span>
+              <span className="text-slate-900 font-bold uppercase tracking-widest">{shortId}</span>
+              <button className="p-1 hover:bg-slate-100 rounded transition ml-1"><Link2 className="w-3 h-3" /></button>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -519,6 +522,18 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                   type="url"
                   onSave={v => updateField({ resume_link: v || null })}
                 />
+                {localJob.resume_link && !localJob.resume_link.startsWith('http') && (
+                  <div className="px-3 mb-2">
+                    <a 
+                      href={resolveResumeUrl(localJob.resume_link)} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <FileText className="w-3 h-3" /> View Uploaded Resume
+                    </a>
+                  </div>
+                )}
                 <EditableMainField 
                   label="Cover Letter Link"
                   value={localJob.cover_letter_link}

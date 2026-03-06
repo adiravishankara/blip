@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { UserProfile, ResumeLink, WorkModePreference } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { resolveResumeUrl } from '../utils/storage';
 import {
   X, Plus, Trash2, Save, User, MapPin, DollarSign, Briefcase,
   Link2, FileText, Loader2,
@@ -21,6 +22,8 @@ const WORK_MODE_OPTIONS: { value: WorkModePreference; label: string }[] = [
 const emptyProfile = (userId: string): Omit<UserProfile, 'id' | 'created_at' | 'updated_at'> => ({
   user_id: userId,
   display_name: '',
+  full_name: '',
+  role_type: '',
   target_roles: [],
   preferred_locations: [],
   min_salary: undefined,
@@ -107,16 +110,24 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
 
   const loadProfile = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('user_id', user!.id)
         .single();
 
+      if (error) {
+        console.error('Supabase load profile error:', error);
+        return;
+      }
+
       if (data) {
+        console.log('Profile loaded from DB:', data);
         setProfile({
           user_id: data.user_id,
-          display_name: data.display_name ?? '',
+          display_name: data.display_name || data.full_name || '',
+          full_name: data.full_name ?? '',
+          role_type: data.role_type ?? '',
           target_roles: data.target_roles ?? [],
           preferred_locations: data.preferred_locations ?? [],
           min_salary: data.min_salary ?? undefined,
@@ -125,8 +136,8 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
           bio: data.bio ?? '',
         });
       }
-    } catch {
-      // No profile yet — use defaults
+    } catch (err) {
+      console.error('Fatal loadProfile error:', err);
     } finally {
       setLoading(false);
     }
@@ -135,21 +146,34 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .upsert(
-          {
-            ...profile,
-            min_salary: profile.min_salary || null,
-          },
-          { onConflict: 'user_id' }
-        );
+      const payload = {
+        ...profile,
+        min_salary: profile.min_salary || null,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Saving profile payload:', payload);
 
-      if (error) throw error;
+      const { data, error, status } = await supabase
+        .from('user_profiles')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('Save failed details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          status
+        });
+        throw error;
+      }
+      
+      console.log('Save success:', status);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving profile:', err);
+      alert(`Error saving profile: ${err.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -195,14 +219,36 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
                 <User className="w-4 h-4" /> Personal Info
               </h3>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Display Name</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Full Name</label>
                 <input
                   type="text"
-                  value={profile.display_name ?? ''}
-                  onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))}
-                  placeholder="Your name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400"
+                  value={profile.full_name ?? ''}
+                  onChange={e => setProfile(p => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Your full name"
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all font-medium"
                 />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Display Name (Public)</label>
+                  <input
+                    type="text"
+                    value={profile.display_name ?? ''}
+                    onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))}
+                    placeholder="Preferred name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Current Role / Type</label>
+                  <input
+                    type="text"
+                    value={profile.role_type ?? ''}
+                    onChange={e => setProfile(p => ({ ...p, role_type: e.target.value }))}
+                    placeholder="e.g. Software Engineer"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400 shadow-sm"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
@@ -283,7 +329,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{r.label}</p>
                         <a
-                          href={r.url}
+                          href={resolveResumeUrl(r.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-blue-600 hover:underline truncate block"

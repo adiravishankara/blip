@@ -58,6 +58,9 @@ export interface ResumeLink {
 export interface UserProfile {
   id: string;
   user_id: string;
+  full_name?: string;
+  email?: string;
+  role_type?: string;
   display_name?: string;
   target_roles: string[];
   preferred_locations: string[];

@@ -6,23 +6,34 @@ import { useAuth } from '../context/AuthContext';
 interface AddJobModalProps {
   onClose: () => void;
   onSuccess: () => void;
+  initialData?: {
+    job_title?: string;
+    company?: string;
+    job_url?: string;
+    location?: string;
+    pay_scale?: string;
+    team?: string;
+    job_description?: string;
+    notes?: string;
+  };
 }
 
-export function AddJobModal({ onClose, onSuccess }: AddJobModalProps) {
+export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    job_title: '',
-    company: '',
-    job_url: '',
-    location: '',
-    pay_scale: '',
-    team: '',
+    job_title: initialData?.job_title || '',
+    company: initialData?.company || '',
+    job_url: initialData?.job_url || '',
+    location: initialData?.location || '',
+    pay_scale: initialData?.pay_scale || '',
+    team: initialData?.team || '',
     contact_person: '',
     referred_by: '',
     keywords: '',
-    notes: '',
+    job_description: initialData?.job_description || '',
+    notes: initialData?.notes || '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,8 +57,10 @@ export function AddJobModal({ onClose, onSuccess }: AddJobModalProps) {
         contact_person: formData.contact_person || null,
         referred_by: formData.referred_by || null,
         keywords: keywordsArray.length > 0 ? keywordsArray : null,
+        job_description: formData.job_description || null,
         notes: formData.notes || null,
         status: 'saved',
+        priority: 'medium', // Default priority
       });
 
       if (insertError) throw insertError;
@@ -163,7 +176,7 @@ export function AddJobModal({ onClose, onSuccess }: AddJobModalProps) {
               />
             </div>
 
-            <div>
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Referred By
               </label>
@@ -190,13 +203,25 @@ export function AddJobModal({ onClose, onSuccess }: AddJobModalProps) {
 
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Job Description
+              </label>
+              <textarea
+                value={formData.job_description}
+                onChange={(e) => setFormData({ ...formData, job_description: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                rows={4}
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Notes
               </label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                rows={3}
+                rows={2}
               />
             </div>
           </div>

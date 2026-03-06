@@ -1,31 +1,26 @@
-import { ChevronRight, Share2, Zap, Maximize2, MoreHorizontal } from 'lucide-react';
+import { Share2, Zap, Maximize2, MoreHorizontal } from 'lucide-react';
 
-export function BoardHeader() {
+interface BoardHeaderProps {
+  userInitials?: string;
+}
+
+export function BoardHeader({ userInitials = 'JD' }: BoardHeaderProps) {
   return (
     <div className="bg-white px-8 pt-4 pb-2">
-      <nav className="flex items-center gap-1 text-xs text-gray-500 mb-2">
-        <span>Workspaces</span>
-        <ChevronRight className="w-3 h-3" />
-        <span>Job Hunt</span>
-        <ChevronRight className="w-3 h-3" />
-        <span className="text-gray-900 font-medium">Kanban Board</span>
+      <nav className="flex items-center gap-1 text-xs text-gray-500 mb-2 font-medium">
+        <span>Spaces</span>
+        <span className="mx-1 text-gray-300">/</span>
+        <span className="text-gray-900">Kanban</span>
       </nav>
 
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Job Applications</h1>
-          <div className="flex -space-x-1.5 ml-4">
-            {[1, 2, 3].map((i) => (
-              <div 
-                key={i} 
-                className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold uppercase
-                  ${i === 1 ? 'bg-indigo-500' : i === 2 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-              >
-                {i === 1 ? 'JD' : i === 2 ? 'AV' : 'RV'}
-              </div>
-            ))}
-            <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-gray-600 text-[10px] font-bold">
-              +5
+          <div className="flex ml-4">
+            <div 
+              className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold uppercase bg-indigo-500"
+            >
+              {userInitials}
             </div>
           </div>
         </div>
@@ -51,11 +46,7 @@ export function BoardHeader() {
         {[
           'Summary', 
           'Timeline', 
-          'Kanban board', 
-          'Calendar', 
-          'List', 
-          'Forms', 
-          'Reports'
+          'Kanban board'
         ].map((tab) => (
           <button
             key={tab}
@@ -67,9 +58,7 @@ export function BoardHeader() {
             {tab}
           </button>
         ))}
-        <div className="flex items-center gap-2 ml-4 mb-1">
-          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 rounded font-bold uppercase py-0.5">NEW</span>
-        </div>
+
       </div>
     </div>
   );

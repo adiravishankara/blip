@@ -12,8 +12,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
+    "country-state-city": "^3.2.1",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
+    "react-country-state-city": "^1.1.12",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
