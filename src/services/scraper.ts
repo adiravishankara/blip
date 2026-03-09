@@ -13,7 +13,8 @@ export interface ScrapingJob {
 }
 
 
-const FIRECRAWL_API_URL = 'https://api.firecrawl.dev/v2/scrape';
+// Use custom URL for self-hosted Firecrawl (e.g. http://localhost:3002), otherwise cloud API
+const FIRECRAWL_API_URL = import.meta.env.VITE_FIRECRAWL_API_URL || 'https://api.firecrawl.dev/v2/scrape';
 const API_KEY = import.meta.env.VITE_FIRECRAWL_API_KEY;
 
 export interface ScrapedJobData {
@@ -23,6 +24,32 @@ export interface ScrapedJobData {
     compensation?: string;
     team_name?: string;
     description: string;
+}
+
+/**
+ * Parses ScrapedJobData from Firecrawl markdown + metadata when JSON extraction is unavailable.
+ */
+function parseJobFromMarkdown(data: { markdown?: string; metadata?: Record<string, string> }): ScrapedJobData {
+    const md = data.markdown ?? '';
+    const meta = data.metadata ?? {};
+    const title = meta.ogTitle ?? meta.title ?? '';
+    const companyMatch = title.match(/\s+at\s+(.+)$/i);
+    const company = companyMatch ? companyMatch[1].trim() : '';
+    const jobTitle = (meta.ogTitle ?? title.replace(/\s+at\s+.*$/i, '').trim()) || 'Unknown';
+    const location = meta.ogDescription ?? '';
+    let compensation = '';
+    const compMatch = md.match(/\$[\d,]+[-\s]*\$?[\d,]+/g);
+    if (compMatch?.length) {
+        compensation = compMatch.slice(0, 2).join('; ').replace(/\s+/g, ' ');
+    }
+    return {
+        job_title: jobTitle,
+        company_name: company || 'Unknown',
+        location: location || undefined,
+        compensation: compensation || undefined,
+        team_name: undefined,
+        description: md
+    };
 }
 
 /**
@@ -67,17 +94,18 @@ export async function extractJobFromUrl(url: string): Promise<ScrapedJobData> {
 
     // 2. Scrape if not in cache or stale
     console.log('Scraping fresh data from Firecrawl for:', cleanedUrl);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (API_KEY) headers['Authorization'] = `Bearer ${API_KEY}`;
+
     const options = {
         method: 'POST',
-        headers: {
-            Authorization: `Bearer ${API_KEY}`,
-            'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({
             url: cleanedUrl,
             onlyMainContent: false,
             maxAge: 172800000,
             formats: [
+                { type: "markdown" },
                 {
                     type: "json",
                     schema: {
@@ -109,10 +137,15 @@ export async function extractJobFromUrl(url: string): Promise<ScrapedJobData> {
 
     const result = await response.json();
 
-    // Firecrawl v2 return format: { success: true, data: { json: { ... } } }
-    const extractedData = result.data?.json as ScrapedJobData;
+    // Firecrawl v2: prefer JSON extraction (LLM), fallback to markdown/metadata when absent
+    let extractedData = result.data?.json as ScrapedJobData | undefined;
 
-    if (!extractedData) {
+    if (!extractedData && result.data?.markdown) {
+        console.log('[Scraper] No JSON from Firecrawl, falling back to markdown/metadata parsing');
+        extractedData = parseJobFromMarkdown(result.data);
+    }
+
+    if (!extractedData || !extractedData.job_title || !extractedData.company_name || !extractedData.description) {
         throw new Error('Failed to extract structured data from Firecrawl response.');
     }
 

@@ -1,0 +1,26 @@
+{
+  "url": "https://job-boards.greenhouse.io/oura/jobs/4114607009",
+  "onlyMainContent": false,
+  "maxAge": 172800000,
+  "formats": [
+    {
+      "type": "json",
+      "schema": {
+        "type": "object",
+        "required": ["job_title", "company_name", "description"],
+        "properties": {
+          "job_title": { "type": "string" },
+          "company_name": { "type": "string" },
+          "team_name": { "type": "string" },
+          "location": { "type": "string" },
+          "compensation": { "type": "string" },
+          "description": {
+            "type": "string",
+            "description": "The full, exhaustive job description. DO NOT summarize. Include the role overview, responsibilities, requirements, qualifications, and benefits sections exactly as they appear."
+          }
+        }
+      },
+      "prompt": "Extract the full job posting details. You must include the ENTIRE job description, including responsibilities, requirements, qualifications, and any provided pay/benefits information. DO NOT summarize or truncate any part of the job description."
+    }
+  ]
+}

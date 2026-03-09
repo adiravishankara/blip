@@ -1,0 +1,131 @@
+# Blip full stack: Supabase (run separately), Firecrawl, Ollama, Frontend
+#
+# Prerequisites:
+# 1. Run Supabase first: npx supabase start
+# 2. Ensure Firecrawl repo is at ../firecrawl (sibling of blip)
+#
+# Start: docker compose up -d
+# Stop:  docker compose down
+
+name: blip
+
+services:
+  # ============ Firecrawl (self-hosted) ============
+  firecrawl-redis:
+    image: redis:alpine
+    networks: [blip-net]
+    command: redis-server --bind 0.0.0.0
+    logging:
+      options: { max-size: "5m", max-file: "2" }
+
+  firecrawl-rabbitmq:
+    image: rabbitmq:3-management
+    networks: [blip-net]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      options: { max-size: "5m", max-file: "2" }
+
+  firecrawl-nuq-postgres:
+    build:
+      context: ../firecrawl/apps/nuq-postgres
+      dockerfile: Dockerfile
+    networks: [blip-net]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    logging:
+      options: { max-size: "10m", max-file: "3" }
+
+  firecrawl-playwright:
+    build:
+      context: ../firecrawl
+      dockerfile: apps/playwright-service-ts/Dockerfile
+    networks: [blip-net]
+    environment:
+      PORT: 3000
+      MAX_CONCURRENT_PAGES: ${CRAWL_CONCURRENT_REQUESTS:-10}
+    cpus: 2.0
+    mem_limit: 4G
+    memswap_limit: 4G
+    tmpfs: ["/tmp/.cache:noexec,nosuid,size=1g"]
+    logging:
+      options: { max-size: "10m", max-file: "3" }
+
+  firecrawl-api:
+    build:
+      context: ../firecrawl
+      dockerfile: apps/api/Dockerfile
+    networks: [blip-net]
+    ports: ["3002:3002"]
+    environment:
+      HOST: "0.0.0.0"
+      PORT: 3002
+      INTERNAL_PORT: 3002
+      EXTRACT_WORKER_PORT: 3004
+      WORKER_PORT: 3005
+      REDIS_URL: redis://firecrawl-redis:6379
+      REDIS_RATE_LIMIT_URL: redis://firecrawl-redis:6379
+      PLAYWRIGHT_MICROSERVICE_URL: http://firecrawl-playwright:3000/scrape
+      NUQ_RABBITMQ_URL: amqp://firecrawl-rabbitmq:5672
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_HOST: firecrawl-nuq-postgres
+      POSTGRES_PORT: 5432
+      USE_DB_AUTHENTICATION: "false"
+      BULL_AUTH_KEY: ${BULL_AUTH_KEY:-CHANGEME}
+      OLLAMA_BASE_URL: http://ollama:11434/api
+      MODEL_NAME: ${OLLAMA_MODEL_NAME:-}
+      MODEL_EMBEDDING_NAME: ${OLLAMA_EMBEDDING_MODEL:-}
+    depends_on:
+      firecrawl-redis: { condition: service_started }
+      firecrawl-playwright: { condition: service_started }
+      firecrawl-rabbitmq: { condition: service_healthy }
+      firecrawl-nuq-postgres: { condition: service_started }
+    command: node dist/src/harness.js --start-docker
+    cpus: 4.0
+    mem_limit: 8G
+    memswap_limit: 8G
+    ulimits: { nofile: { soft: 65535, hard: 65535 } }
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    logging:
+      options: { max-size: "10m", max-file: "3" }
+
+  # ============ Ollama (Llama / local LLM) ============
+  ollama:
+    image: ollama/ollama:latest
+    networks: [blip-net]
+    ports: ["11434:11434"]
+    volumes: [ollama-data:/root/.ollama]
+    # Optional: automatically pull a model on first run
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
+
+  # ============ Blip Frontend ============
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_FIRECRAWL_API_KEY: ${VITE_FIRECRAWL_API_KEY:-}
+        VITE_FIRECRAWL_API_URL: ${VITE_FIRECRAWL_API_URL:-http://localhost:3002/v2/scrape}
+    networks: [blip-net]
+    ports: ["3000:80"]
+    depends_on:
+      firecrawl-api: { condition: service_started }
+
+networks:
+  blip-net:
+    driver: bridge
+
+volumes:
+  ollama-data:

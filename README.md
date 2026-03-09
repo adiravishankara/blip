@@ -76,6 +76,9 @@ Apply the SQL migrations found in `supabase/migrations/` in chronological order 
 npm run dev
 ```
 
+### 6. Docker (Full Stack)
+To run Supabase, Firecrawl, Ollama, and the frontend together with Docker, see [DOCKER.md](./DOCKER.md).
+
 ---
 
 ## Project Structure
