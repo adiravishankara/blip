@@ -106,6 +106,14 @@ export function FilterBar({ filters, setFilter, availableCompanies, onClear, use
           Has Resume
         </button>
 
+        <button 
+          onClick={() => setFilter('groupByCompany', !filters.groupByCompany)}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors
+            ${filters.groupByCompany ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'}`}
+        >
+          Group by Company
+        </button>
+
         <div className="h-6 w-px bg-gray-200 mx-2" />
 
         <div className="relative group">

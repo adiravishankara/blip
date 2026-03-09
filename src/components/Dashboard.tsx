@@ -230,6 +230,7 @@ export function Dashboard() {
             selectionMode={selectionMode}
             selectedJobs={selectedJobs}
             toggleJobSelection={toggleJobSelection}
+            groupByCompany={filters.groupByCompany}
           />
         )}
       </main>

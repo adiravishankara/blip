@@ -9,6 +9,7 @@ export interface FilterState {
     status: JobStatus[];
     hasResume: boolean | null;
     minMatchScore: number;
+    groupByCompany: boolean;
 }
 
 export function useJobFilters(jobs: Job[]) {
@@ -20,6 +21,7 @@ export function useJobFilters(jobs: Job[]) {
         status: [],
         hasResume: null,
         minMatchScore: 0,
+        groupByCompany: true,
     });
 
     const availableCompanies = useMemo(() => {
@@ -84,6 +86,7 @@ export function useJobFilters(jobs: Job[]) {
             status: [],
             hasResume: null,
             minMatchScore: 0,
+            groupByCompany: true,
         });
     };
 

@@ -21,11 +21,17 @@ interface KanbanBoardProps {
   selectionMode?: boolean;
   selectedJobs?: Set<string>;
   toggleJobSelection?: (jobId: string) => void;
+  groupByCompany?: boolean;
 }
 
-export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMode, selectedJobs, toggleJobSelection }: KanbanBoardProps) {
+export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMode, selectedJobs, toggleJobSelection, groupByCompany }: KanbanBoardProps) {
   const [draggedJobId, setDraggedJobId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<JobStatus | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
 
   const getJobsByStatus = (status: JobStatus) => {
     return jobs.filter(job => job.status === status);
@@ -112,31 +118,142 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
                 isBeingDraggedOver ? 'bg-blue-50 border-blue-300' : 'bg-gray-50/50 hover:bg-gray-100/50'
               }`}
             >
-              {columnJobs.map(job => (
-                <div
-                  key={job.id}
-                  draggable={!selectionMode}
-                  onDragStart={(e) => handleDragStart(e, job.id)}
-                  className={`transition-transform ${
-                    selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
-                  } ${
-                    draggedJobId === job.id ? 'opacity-40 scale-95' : 'hover:-translate-y-1'
-                  }`}
-                >
-                  <JobCard
-                    job={job}
-                    onClick={() => {
-                      if (selectionMode && toggleJobSelection) {
-                        toggleJobSelection(job.id);
-                      } else {
-                        onSelectJob(job);
-                      }
-                    }}
-                    selectionMode={selectionMode}
-                    isSelected={selectedJobs?.has(job.id)}
-                  />
-                </div>
-              ))}
+              {(() => {
+                if (!groupByCompany) {
+                  return columnJobs.map(job => (
+                    <div
+                      key={job.id}
+                      draggable={!selectionMode}
+                      onDragStart={(e) => handleDragStart(e, job.id)}
+                      className={`transition-transform ${
+                        selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+                      } ${
+                        draggedJobId === job.id ? 'opacity-40 scale-95' : 'hover:-translate-y-1'
+                      }`}
+                    >
+                      <JobCard
+                        job={job}
+                        onClick={() => {
+                          if (selectionMode && toggleJobSelection) {
+                            toggleJobSelection(job.id);
+                          } else {
+                            onSelectJob(job);
+                          }
+                        }}
+                        selectionMode={selectionMode}
+                        isSelected={selectedJobs?.has(job.id)}
+                      />
+                    </div>
+                  ));
+                }
+
+                // Group by company logic
+                const groups: Record<string, Job[]> = {};
+                const singles: Job[] = [];
+
+                // First count roles per company in this column
+                const companyCounts: Record<string, number> = {};
+                for (const job of columnJobs) {
+                  const comp = job.company || 'Unknown';
+                  companyCounts[comp] = (companyCounts[comp] || 0) + 1;
+                }
+
+                columnJobs.forEach(job => {
+                  const comp = job.company || 'Unknown';
+                  if (companyCounts[comp] > 1) {
+                    if (!groups[comp]) groups[comp] = [];
+                    groups[comp].push(job);
+                  } else {
+                    singles.push(job);
+                  }
+                });
+
+                return (
+                  <>
+                    {Object.entries(groups).map(([comp, groupJobs]) => {
+                      const groupId = `${column.status}-${comp}`;
+                      const isCollapsed = collapsedGroups[groupId];
+                      return (
+                        <div key={groupId} className="border border-gray-200 rounded-lg bg-gray-50/50 mb-3 overflow-hidden shadow-sm">
+                          <button
+                            onClick={() => toggleGroup(groupId)}
+                            className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-sm font-medium text-gray-700 outline-none"
+                          >
+                            <div className="flex z-10 items-center justify-between gap-2 overflow-hidden w-full">
+                                <span className="truncate text-xs font-bold text-gray-600">{comp}</span>
+                                <div className="flex items-center gap-2">
+                                <span className="flex-shrink-0 bg-gray-200 px-1.5 py-0.5 rounded text-[10px] font-bold text-gray-700">
+                                  {groupJobs.length} roles
+                                </span>
+                                <svg 
+                                    className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} 
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                                </div>
+                            </div>
+                          </button>
+                          {!isCollapsed && (
+                            <div className="p-2 space-y-3 bg-gray-50">
+                              {groupJobs.map(job => (
+                                <div
+                                  key={job.id}
+                                  draggable={!selectionMode}
+                                  onDragStart={(e) => handleDragStart(e, job.id)}
+                                  className={`transition-transform ${
+                                    selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+                                  } ${
+                                    draggedJobId === job.id ? 'opacity-40 scale-95' : 'hover:-translate-y-1'
+                                  }`}
+                                >
+                                  <JobCard
+                                    job={job}
+                                    onClick={() => {
+                                      if (selectionMode && toggleJobSelection) {
+                                        toggleJobSelection(job.id);
+                                      } else {
+                                        onSelectJob(job);
+                                      }
+                                    }}
+                                    selectionMode={selectionMode}
+                                    isSelected={selectedJobs?.has(job.id)}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {singles.map(job => (
+                      <div
+                        key={job.id}
+                        draggable={!selectionMode}
+                        onDragStart={(e) => handleDragStart(e, job.id)}
+                        className={`transition-transform ${
+                          selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+                        } ${
+                          draggedJobId === job.id ? 'opacity-40 scale-95' : 'hover:-translate-y-1'
+                        }`}
+                      >
+                        <JobCard
+                          job={job}
+                          onClick={() => {
+                            if (selectionMode && toggleJobSelection) {
+                              toggleJobSelection(job.id);
+                            } else {
+                              onSelectJob(job);
+                            }
+                          }}
+                          selectionMode={selectionMode}
+                          isSelected={selectedJobs?.has(job.id)}
+                        />
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
 
               {columnJobs.length === 0 && !isBeingDraggedOver && (
                 <div className="text-center text-gray-400 text-[11px] py-12 font-medium">

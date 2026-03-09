@@ -1,5 +1,5 @@
 import { useAuth } from '../../context/AuthContext';
-import { Search, Bell, Settings, HelpCircle, Grid } from 'lucide-react';
+import { Search, Bell, HelpCircle, Grid } from 'lucide-react';
 
 interface HeaderProps {
   onSearchChange?: (value: string) => void;
@@ -66,10 +66,9 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-1 border-r border-gray-200 pr-2 mr-1">
-          {[Bell, HelpCircle, Settings].map((Icon, i) => (
+          {[Bell, HelpCircle].map((Icon, i) => (
             <button 
               key={i} 
-              onClick={Icon === Settings ? onProfileClick : undefined}
               className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
             >
               <Icon className="w-5 h-5" />
@@ -98,13 +97,6 @@ export function Header({
                 >
                   <Grid className="w-4 h-4 text-gray-400" />
                   Profile
-                </button>
-                <button 
-                  onClick={onProfileClick}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Settings className="w-4 h-4 text-gray-400" />
-                  Settings
                 </button>
               </div>
               <div className="border-t border-gray-100 mt-1 p-1">

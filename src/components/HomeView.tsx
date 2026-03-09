@@ -8,9 +8,11 @@ import {
   TrendingUp, MapPin, ChevronRight, ArrowUpRight,
   Filter
 } from 'lucide-react';
+import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
 import { Job, JobStatus } from '../types';
 import { supabase } from '../lib/supabase';
-import { motion } from 'framer-motion';
+
+const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
 interface HomeViewProps {
   jobs: Job[];
@@ -413,37 +415,54 @@ export function HomeView({ jobs, onViewBoard, onSelectJob }: HomeViewProps) {
             </div>
           </div>
           
-          <div className="flex-1 bg-gray-50 rounded-xl overflow-hidden relative min-h-[300px] flex items-center justify-center border border-gray-100">
-             {/* Simple visual representation of a map since drawing a full world map with topojson in a single file is complex */}
-             <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/gray-gears.png')]" />
-             
-             <div className="relative w-full h-full p-8 flex flex-wrap content-center justify-center gap-6">
-               {mapLocations.length > 0 ? mapLocations.map((loc, i) => (
-                 <motion.div 
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: i * 0.1 }}
-                    key={loc.name} 
-                    className="flex flex-col items-center gap-2"
-                  >
-                   <div className="relative">
-                      <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400 opacity-20 scale-150" />
-                      <div 
-                        className="w-12 h-12 rounded-full bg-indigo-100 border-2 border-indigo-500 flex items-center justify-center text-indigo-700 font-bold text-lg shadow-sm"
-                      >
-                        {loc.count}
-                      </div>
-                   </div>
-                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{loc.name}</span>
-                 </motion.div>
-               )) : (
-                 <div className="text-gray-400 text-sm italic">No locations found for this stage</div>
-               )}
-             </div>
+          <div className="flex-1 bg-gray-100 rounded-xl overflow-hidden relative min-h-[300px] border border-gray-200">
+            <ComposableMap
+              projection="geoMercator"
+              projectionConfig={{
+                center: [0, 20],
+                scale: 120
+              }}
+              className="w-full h-full"
+            >
+              <Geographies geography={geoUrl}>
+                {({ geographies }: { geographies: Array<{ rsmKey: string; [k: string]: unknown }> }) =>
+                  geographies.map((geo: { rsmKey: string; [k: string]: unknown }) => (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill="#e5e7eb"
+                      stroke="#d1d5db"
+                      strokeWidth={0.5}
+                      style={{
+                        default: { outline: 'none' },
+                        hover: { fill: '#d1d5db', outline: 'none' },
+                        pressed: { outline: 'none' }
+                      }}
+                    />
+                  ))
+                }
+              </Geographies>
+              {mapLocations.map((loc) => (
+                <Marker key={loc.name} coordinates={[loc.lng, loc.lat]}>
+                  <g>
+                    <circle r={8} fill="#6366f1" stroke="#fff" strokeWidth={2} />
+                    <text
+                      textAnchor="middle"
+                      y={20}
+                      fontSize={10}
+                      fontWeight="bold"
+                      fill="#4338ca"
+                    >
+                      {loc.count}
+                    </text>
+                  </g>
+                </Marker>
+              ))}
+            </ComposableMap>
 
-             <div className="absolute bottom-4 left-4 bg-white/80 backdrop-blur-md p-3 rounded-lg border border-gray-100 text-[10px] text-gray-500 max-w-[200px]">
-                💡 You have {jobs.filter(j => j.location).length} jobs with location data across {mapLocations.length} major cities.
-             </div>
+            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg border border-gray-200 shadow-sm text-[10px] text-gray-600 max-w-[220px]">
+              💡 You have {jobs.filter(j => j.location).length} jobs with location data across {mapLocations.length} major cities.
+            </div>
           </div>
         </div>
       </div>

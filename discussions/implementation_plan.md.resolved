@@ -1,0 +1,56 @@
+# Group by Company Feature
+
+This feature adds user controls to group jobs by company on the Kanban board, specifically for columns where a company has multiple roles.
+
+## Proposed Changes
+
+### Hooks
+#### [MODIFY] [useJobFilters.ts](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/hooks/useJobFilters.ts)
+- Update [FilterState](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/hooks/useJobFilters.ts#4-13) to include `groupByCompany: boolean`.
+- Initialize it to `false` and handle it in the [clearFilters](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/hooks/useJobFilters.ts#78-89) method.
+
+### Components
+#### [MODIFY] [FilterBar.tsx](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/components/layout/FilterBar.tsx)
+- Add a new toggle button labeled "Group by Company" next to the existing "Has Resume" filter button.
+- Toggling this update the `groupByCompany` state via [setFilter](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/hooks/useJobFilters.ts#74-77).
+
+#### [MODIFY] [Dashboard.tsx](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/components/Dashboard.tsx)
+- Pass the new `groupByCompany={filters.groupByCompany}` prop into the `<KanbanBoard />` component.
+
+#### [MODIFY] [KanbanBoard.tsx](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/components/KanbanBoard.tsx)
+- Add `groupByCompany?: boolean` to [KanbanBoardProps](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/components/KanbanBoard.tsx#16-25).
+- Add local state to track collapsed company groups: `const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});`.
+- Update the column rendering logic to evaluate `columnJobs`:
+  - If `groupByCompany` is true, group `columnJobs` by `job.company`.
+  - For each company in that column:
+    - If the company has > 1 role in this column, render a collapsible header containing the company name and role count. Clicking this toggles the collapsed state for `[column.status]-[company]`. Render its jobs underneath (if expanded).
+    - If the company has 1 role, just render the single job card without a collapsible header.
+  - Re-attach the drag-and-drop handlers properly to the new grouped layout.
+
+# City Auto-fill Feature
+
+This feature fixes a bug in the city search where obscure cities were prioritized and integrates the updated autocomplete selector into the manual Add Job form.
+
+## Proposed Changes
+
+### Components
+#### [MODIFY] [CityAutocomplete.tsx](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/components/CityAutocomplete.tsx)
+- Modify the search algorithm to collect matches rather than returning the first 8 occurrences found alphabetically.
+- Rank matches prioritizing: exact matches or `startsWith` over `includes`, then prioritize US country code, then ascending alphabetical order.
+- Slice the top 8 matches after sorting them properly.
+
+#### [MODIFY] [AddJobModal.tsx](file:///c:/Users/adira/Desktop/REPOSITORIES/blip/src/components/AddJobModal.tsx)
+- Replace the standard `<input>` for the "Location" field with the `<CityAutocomplete>` component.
+- Ensure the selected autocomplete location correctly ties back to `formData.location`.
+
+## Verification Plan
+
+### Manual Verification
+1. Open the application and add multiple jobs for the same company (e.g., "Google") and give them the same status (e.g., "BACKLOG").
+2. Ensure there's a column with >1 role for Google, and another company like "Meta" with only 1 role in the same column.
+3. Click the "Group by Company" button in the FilterBar.
+4. Verify that Google is now grouped under a collapsible header, and Meta is rendered normally.
+5. Toggle the collapsible header to ensure child cards appear/disappear.
+6. Verify dragging and dropping cards (including those in groups) still correctly changes their status and updates the UI.
+7. Open the Add Job Modal via the manual entry button.
+8. Type "san fran" in the Location field. Validate that San Francisco, CA, US is the primary suggestion, instead of a Brazilian city. Check that selecting a city correctly populates the value and persists on save.

@@ -23,7 +23,7 @@ export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProp
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded border p-3 shadow-sm transition-all group select-none relative cursor-pointer
+      className={`h-[120px] min-h-[120px] max-h-[120px] flex flex-col overflow-hidden bg-white rounded border p-3 shadow-sm transition-all group select-none relative cursor-pointer
         ${selectionMode && isSelected ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-blue-50/30'}
       `}
     >
@@ -35,14 +35,14 @@ export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProp
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 min-h-0 flex-1">
         {/* Title and Company */}
-        <div>
-          <h3 className="text-[13px] font-medium text-gray-800 leading-tight group-hover:text-blue-600 transition-colors mb-1">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[13px] font-medium text-gray-800 leading-tight group-hover:text-blue-600 transition-colors mb-1 truncate" title={job.job_title}>
             {job.job_title}
           </h3>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-blue-600 uppercase tracking-tight">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[11px] font-bold text-blue-600 uppercase tracking-tight truncate" title={job.company}>
               {job.company}
             </span>
             {job.job_url && (

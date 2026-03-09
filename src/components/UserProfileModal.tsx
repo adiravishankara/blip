@@ -3,6 +3,7 @@ import { UserProfile, ResumeLink, WorkModePreference } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
+import { CityAutocomplete } from './CityAutocomplete';
 import {
   X, Plus, Trash2, Save, User, MapPin, DollarSign, Briefcase,
   Link2, FileText, Loader2,
@@ -278,13 +279,33 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
                 onChange={v => setProfile(p => ({ ...p, target_roles: v }))}
               />
 
-              <TagInput
-                label="Preferred Locations"
-                tags={profile.preferred_locations ?? []}
-                placeholder="e.g. Remote, San Francisco"
-                icon={<MapPin className="w-3 h-3" />}
-                onChange={v => setProfile(p => ({ ...p, preferred_locations: v }))}
-              />
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 mb-2">
+                  <MapPin className="w-3 h-3" />
+                  Preferred Locations
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(profile.preferred_locations ?? []).map((loc, i) => (
+                    <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200">
+                      {loc}
+                      <button onClick={() => setProfile(p => ({ ...p, preferred_locations: (p.preferred_locations ?? []).filter((_, j) => j !== i) }))} className="hover:text-red-500 transition">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <CityAutocomplete
+                  key={profile.preferred_locations?.length ?? 0}
+                  onSelect={(location) => {
+                    const locs = profile.preferred_locations ?? [];
+                    if (location && !locs.includes(location)) {
+                      setProfile(p => ({ ...p, preferred_locations: [...(p.preferred_locations ?? []), location] }));
+                    }
+                  }}
+                  placeholder="Type city name (min 3 chars)..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

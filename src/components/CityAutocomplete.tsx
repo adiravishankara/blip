@@ -5,10 +5,11 @@ interface CityAutocompleteProps {
   onSelect: (location: string) => void;
   placeholder?: string;
   className?: string;
+  initialValue?: string;
 }
 
-export function CityAutocomplete({ onSelect, placeholder = "Start typing a city...", className }: CityAutocompleteProps) {
-  const [query, setQuery] = useState('');
+export function CityAutocomplete({ onSelect, placeholder = "Start typing a city...", className, initialValue = "" }: CityAutocompleteProps) {
+  const [query, setQuery] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<{ name: string; stateCode: string; countryCode: string; full: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -26,13 +27,49 @@ export function CityAutocomplete({ onSelect, placeholder = "Start typing a city.
       const lowerQuery = query.toLowerCase();
       
       // Optimization: filter by prefix first, then results
-      const matches = [];
+      let matches = [];
+      const exactMatches = [];
+      const startsWithUsMatches = [];
+      const startsWithMatches = [];
+      const includesUsMatches = [];
+      const includesMatches = [];
+      
       for (const city of allCities) {
-        if (city.name.toLowerCase().includes(lowerQuery)) {
-          matches.push(city);
-          if (matches.length >= 8) break; // Early exit for performance
+        const cityName = city.name.toLowerCase();
+        if (cityName.includes(lowerQuery)) {
+          if (cityName === lowerQuery) {
+            exactMatches.push(city);
+          } else if (cityName.startsWith(lowerQuery)) {
+            if (city.countryCode === 'US') {
+              startsWithUsMatches.push(city);
+            } else {
+              startsWithMatches.push(city);
+            }
+          } else {
+            if (city.countryCode === 'US') {
+              includesUsMatches.push(city);
+            } else {
+              includesMatches.push(city);
+            }
+          }
         }
       }
+
+      // Sort alphabetically within categories
+      const sortAlphabetical = (a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name);
+      exactMatches.sort(sortAlphabetical);
+      startsWithUsMatches.sort(sortAlphabetical);
+      startsWithMatches.sort(sortAlphabetical);
+      includesUsMatches.sort(sortAlphabetical);
+      includesMatches.sort(sortAlphabetical);
+
+      matches = [
+        ...exactMatches,
+        ...startsWithUsMatches,
+        ...startsWithMatches,
+        ...includesUsMatches,
+        ...includesMatches
+      ].slice(0, 8);
 
       const formatted = matches.map(city => {
         const state = State.getStateByCodeAndCountry(city.stateCode, city.countryCode);
@@ -84,6 +121,7 @@ export function CityAutocomplete({ onSelect, placeholder = "Start typing a city.
         value={query}
         onChange={e => {
           setQuery(e.target.value);
+          onSelect(e.target.value);
           setShowSuggestions(true);
           setActiveIndex(-1);
         }}

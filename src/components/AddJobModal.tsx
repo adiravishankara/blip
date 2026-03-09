@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { CityAutocomplete } from './CityAutocomplete';
 
 interface AddJobModalProps {
   onClose: () => void;
@@ -130,10 +131,9 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Location
               </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              <CityAutocomplete
+                initialValue={formData.location}
+                onSelect={(location) => setFormData({ ...formData, location })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 placeholder="Remote, NYC, etc."
               />
