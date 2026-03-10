@@ -13,7 +13,7 @@ export interface ScrapingJob {
 }
 
 
-const FIRECRAWL_API_URL = 'https://api.firecrawl.dev/v2/scrape';
+const FIRECRAWL_API_URL = import.meta.env.VITE_FIRECRAWL_API_URL || 'https://api.firecrawl.dev/v2/scrape';
 const API_KEY = import.meta.env.VITE_FIRECRAWL_API_KEY;
 
 export interface ScrapedJobData {

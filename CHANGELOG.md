@@ -6,6 +6,8 @@ All notable changes to Blip are documented here.
 
 ### Added
 - Changelog to track project changes.
+- Detailed setup docs in README: Supabase setup (schema.sql or migrations), Firecrawl API key + optional self-hosted URL.
+- Optional `VITE_FIRECRAWL_API_URL` env var for self-hosted/local Firecrawl instances.
 
 ### Changed
 - Kanban board: All cells now have uniform height; long text truncates with ellipsis.

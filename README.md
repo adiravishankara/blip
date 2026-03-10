@@ -41,7 +41,7 @@ Blip is a high-performance, Jira-inspired job hunting dashboard designed to take
 
 ### 1. Prerequisites
 - Node.js (v18 or higher)
-- A Supabase account (or local Supabase CLI)
+- A [Supabase](https://supabase.com/) account
 - A [Firecrawl](https://firecrawl.dev/) API Key
 
 ### 2. Installation
@@ -51,27 +51,49 @@ cd blip
 npm install
 ```
 
-### 3. Environment Variables
-Create a `.env.local` file in the root:
+### 3. Supabase Setup
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com/).
+2. In **Project Settings → API**, copy your project URL and `anon` public key.
+3. **Set up the database schema** using one of the options below:
+
+   **Option A: Single schema file (recommended for new projects)**  
+   Open the Supabase Dashboard → **SQL Editor**, paste the contents of `schema.sql`, and run it. This creates all tables, RLS policies, and functions in one go.
+
+   **Option B: Migrations (if schema.sql fails or for incremental setup)**  
+   Run migrations in chronological order via the SQL Editor, or use the Supabase CLI:
+
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   npx supabase db push
+   ```
+
+   Or manually run each file in `supabase/migrations/` in order (oldest first).
+
+### 4. Firecrawl Setup
+
+1. Sign up at [firecrawl.dev](https://firecrawl.dev/) and obtain an API key.
+2. **Using Firecrawl Cloud:** No extra config. Set `VITE_FIRECRAWL_API_KEY` in your env.
+3. **Using self-hosted/local Firecrawl:** Also set `VITE_FIRECRAWL_API_URL` to your API base URL (e.g. `http://localhost:3002/v2/scrape`).
+
+### 5. Environment Variables
+
+Create a `.env.local` file in the project root:
+
 ```env
 VITE_SUPABASE_URL=your_project_url
 VITE_SUPABASE_ANON_KEY=your_anon_key
 VITE_FIRECRAWL_API_KEY=your_firecrawl_api_key
+# Optional: For self-hosted Firecrawl only
+# VITE_FIRECRAWL_API_URL=http://localhost:3002/v2/scrape
 ```
 
-### 4. Database Setup (Supabase)
-This project relies on several PostgreSQL tables and RLS policies.
+### 6. Run the App
 
-**Option A: Local Development (Recommended)**
-```bash
-npx supabase start
-```
-The CLI will automatically apply all migrations in `./supabase/migrations`.
+1. Create an account in the app (or use your preferred auth provider).
+2. Start the dev server:
 
-**Option B: Supabase Dashboard**
-Apply the SQL migrations found in `supabase/migrations/` in chronological order using the SQL Editor in your Supabase dashboard.
-
-### 5. Start Developing
 ```bash
 npm run dev
 ```
@@ -83,7 +105,8 @@ npm run dev
 - `/src/components`: UI components (Modals, Kanban, Dashboard)
 - `/src/hooks`: Custom React hooks for business logic
 - `/src/lib`: Supabase client configuration
-- `/supabase/migrations`: Database schema history
+- `/schema.sql`: Full schema for one-shot setup
+- `/supabase/migrations`: Database schema history (alternative to schema.sql)
 - `/src/components/ScrapingWorker.tsx`: The logic for background job processing
 
 ---
@@ -91,4 +114,4 @@ npm run dev
 ## License
 MIT
 
-Built with ❤️ by [Aditya Ravishankar](https://github.com/adiravishankara)
+Built with ❤️ by [Adi](https://github.com/adiravishankara)
