@@ -4,10 +4,10 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
 import {
-  X, ExternalLink, Calendar, MapPin, DollarSign, Users, Send, Flag,
-  FileText, MoreVertical, Trash2, Copy, Wifi, Building2, GitBranch,
-  Clock, Briefcase, User, Link2, ClipboardList, ChevronDown, ChevronUp,
-  Box, Share2, Eye, Layout, Bolt, Edit2
+  X, ExternalLink, Send,
+  FileText, MoreVertical, Trash2, Copy,
+  User, Link2, ClipboardList, ChevronDown, ChevronUp,
+  Share2, Eye, Bolt
 } from 'lucide-react';
 
 interface JobDetailModalProps {
@@ -49,19 +49,6 @@ const STATUS_COLORS: Record<JobStatus, string> = {
   ghosted: 'bg-orange-100 text-orange-700',
 };
 
-const PRIORITY_COLORS: Record<JobPriority, string> = {
-  low: 'text-blue-500',
-  medium: 'text-amber-500',
-  high: 'text-orange-500',
-  critical: 'text-rose-500',
-};
-
-const WORK_MODE_ICON: Record<WorkMode, JSX.Element> = {
-  remote: <Wifi className="w-3.5 h-3.5" />,
-  hybrid: <GitBranch className="w-3.5 h-3.5" />,
-  onsite: <Building2 className="w-3.5 h-3.5" />,
-};
-
 // ---------------------------------------------------------------------------
 // Inline-editable field for the Sidebar Grid
 // ---------------------------------------------------------------------------
@@ -89,7 +76,11 @@ function EditableGridField({ label, value, placeholder = 'None', type = 'text', 
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSave();
-    if (e.key === 'Escape') { setEditing(false); setDraft(value ?? ''); }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      setEditing(false);
+      setDraft(value ?? '');
+    }
   };
 
   return (
@@ -177,7 +168,11 @@ function EditableMainField({ label, value, placeholder = '—', type = 'text', i
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSave();
-    if (e.key === 'Escape') { setEditing(false); setDraft(value ?? ''); }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      setEditing(false);
+      setDraft(value ?? '');
+    }
   };
 
   return (
@@ -259,9 +254,18 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
         setShowSettings(false);
       }
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
+  }, [onClose]);
 
   const loadComments = async () => {
     const { data } = await supabase
@@ -394,7 +398,13 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                     const val = e.target.value.trim();
                     if (val && val !== localJob.job_title) await updateField({ job_title: val });
                   }}
-                  onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                    if (e.key === 'Escape') {
+                      e.stopPropagation();
+                      setIsEditingTitle(false);
+                    }
+                  }}
                   className="text-2xl font-bold text-slate-900 mb-2 w-full border-b border-blue-400 outline-none"
                 />
               ) : (
@@ -417,7 +427,13 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                       const val = e.target.value.trim();
                       if (val && val !== localJob.company) await updateField({ company: val });
                     }}
-                    onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        setIsEditingCompany(false);
+                      }
+                    }}
                     className="font-medium text-slate-700 border-b border-blue-400 outline-none"
                   />
                 ) : (
@@ -441,7 +457,13 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                       const val = e.target.value.trim();
                       if (val !== (localJob.job_url ?? '')) await updateField({ job_url: val || null });
                     }}
-                    onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        setIsEditingUrl(false);
+                      }
+                    }}
                     className="text-blue-600 border-b border-blue-400 outline-none min-w-[200px]"
                     placeholder="Enter JD Link..."
                   />
@@ -499,6 +521,12 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                         setIsEditingDesc(false);
                         const val = e.target.value.trim();
                         if (val !== (localJob.job_description ?? '')) await updateField({ job_description: val || null });
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          setIsEditingDesc(false);
+                        }
                       }}
                       className="w-full text-sm outline-none bg-transparent resize-y"
                       rows={6}
@@ -560,6 +588,12 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                         setIsEditingNotes(false);
                         const val = e.target.value.trim();
                         if (val !== (localJob.notes ?? '')) await updateField({ notes: val || null });
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          setIsEditingNotes(false);
+                        }
                       }}
                       className="w-full text-sm outline-none bg-transparent resize-y"
                       rows={6}

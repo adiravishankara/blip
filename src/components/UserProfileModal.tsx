@@ -109,6 +109,17 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    // Escape key listener
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const loadProfile = async () => {
     try {
       const { data, error } = await supabase
