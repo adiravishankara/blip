@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Job } from '../types';
 import { Calendar, Flag, ExternalLink } from 'lucide-react';
-import { buildJobHealth, getSuggestedFollowUp } from '../utils/jobHealth';
+import { buildJobHealth, isSuggestedFollowUpDue } from '../utils/jobHealth';
 
 interface JobCardProps {
   job: Job;
@@ -51,7 +51,7 @@ export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] 
     });
   }, [allJobs, job]);
 
-  const suggestedFollowUp = getSuggestedFollowUp(job);
+  const followUpDue = isSuggestedFollowUpDue(job);
 
   return (
     <div
@@ -107,7 +107,7 @@ export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] 
               {health.ageLabel}
             </span>
           )}
-          {!health.ageLabel && suggestedFollowUp && (
+          {!health.ageLabel && followUpDue && (
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
               Follow up due
             </span>
@@ -128,3 +128,4 @@ export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] 
     </div>
   );
 }
+

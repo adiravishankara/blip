@@ -2,6 +2,7 @@ import { AgeState, DuplicateCandidate, DuplicateSeverity, FollowUpState, Job, Jo
 import { normalizeCompanyName, normalizeJobTitle, normalizeJobUrl } from './jobNormalization';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
+export const DEFAULT_FOLLOW_UP_BUSINESS_DAYS = 5;
 
 const STATUS_THRESHOLDS: Partial<Record<Job['status'], { warning: number; overdue: number }>> = {
   saved: { warning: 5, overdue: 7 },
@@ -16,13 +17,23 @@ function parseDate(value?: string | null): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+export function addBusinessDays(startDate: Date, businessDays: number): Date {
+  const date = new Date(startDate);
+  let remaining = businessDays;
+
+  while (remaining > 0) {
+    date.setDate(date.getDate() + 1);
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) {
+      remaining -= 1;
+    }
+  }
+
+  return date;
+}
+
 export function getJobReferenceDate(job: Job): Date {
-  return (
-    parseDate(job.last_meaningful_activity_at) ??
-    parseDate(job.updated_at) ??
-    parseDate(job.date_added) ??
-    new Date()
-  );
+  return parseDate(job.last_meaningful_activity_at) ?? parseDate(job.updated_at) ?? parseDate(job.date_added) ?? new Date();
 }
 
 export function getDaysSince(date: Date, now = new Date()): number {
@@ -59,30 +70,30 @@ export function getAgeLabel(job: Job, now = new Date()): string | null {
 
 export function getSuggestedFollowUp(job: Job, now = new Date()): { dueAt: string; reason: string } | null {
   const referenceDate = getJobReferenceDate(job);
-  const ageInDays = getDaysSince(referenceDate, now);
 
-  if (job.status === 'applied' && ageInDays >= 7) {
-    return {
-      dueAt: now.toISOString(),
-      reason: 'No update since application was submitted.',
-    };
+  if (job.status !== 'applied' && job.status !== 'interviewing') {
+    return null;
   }
 
-  if (job.status === 'interviewing') {
-    const interviewDate = parseDate(job.interview_date);
-    if (interviewDate && interviewDate > now) {
-      return null;
-    }
-
-    if (ageInDays >= 5) {
-      return {
-        dueAt: now.toISOString(),
-        reason: 'No interview follow-up or next step has been recorded.',
-      };
-    }
+  const interviewDate = parseDate(job.interview_date);
+  if (job.status === 'interviewing' && interviewDate && interviewDate > now) {
+    return null;
   }
 
-  return null;
+  const dueAt = addBusinessDays(referenceDate, DEFAULT_FOLLOW_UP_BUSINESS_DAYS);
+  return {
+    dueAt: dueAt.toISOString(),
+    reason: job.status === 'applied'
+      ? `No update after ${DEFAULT_FOLLOW_UP_BUSINESS_DAYS} business days since applying.`
+      : `No follow-up recorded ${DEFAULT_FOLLOW_UP_BUSINESS_DAYS} business days after the latest interview activity.`,
+  };
+}
+
+export function isSuggestedFollowUpDue(job: Job, now = new Date()): boolean {
+  const suggestion = getSuggestedFollowUp(job, now);
+  if (!suggestion) return false;
+  const dueDate = parseDate(suggestion.dueAt);
+  return !!dueDate && dueDate <= now;
 }
 
 export function getFollowUpState(followUp: JobFollowUp | null | undefined, now = new Date()): FollowUpState {
@@ -105,8 +116,12 @@ export function getFollowUpLabel(followUp: JobFollowUp | null | undefined, now =
   const dueDate = parseDate(followUp?.due_at);
   if (!dueDate) return null;
 
-  const days = getDaysSince(dueDate, now);
-  return state === 'due' ? `Follow up due ${days}d` : `Follow up scheduled`;
+  if (state === 'due') {
+    const days = getDaysSince(dueDate, now);
+    return `Follow up due ${days}d`;
+  }
+
+  return `Follow up on ${dueDate.toLocaleDateString()}`;
 }
 
 export function getDuplicateSeverity(job: Job, candidates: DuplicateCandidate[]): DuplicateSeverity {
@@ -121,10 +136,7 @@ export function getDuplicateSeverity(job: Job, candidates: DuplicateCandidate[])
       return 'exact';
     }
 
-    if (
-      normalizeCompanyName(candidate.company) === currentCompany &&
-      normalizeJobTitle(candidate.job_title) === currentTitle
-    ) {
+    if (normalizeCompanyName(candidate.company) === currentCompany && normalizeJobTitle(candidate.job_title) === currentTitle) {
       return 'exact';
     }
   }
@@ -132,14 +144,7 @@ export function getDuplicateSeverity(job: Job, candidates: DuplicateCandidate[])
   return candidates.some(candidate => candidate.id !== job.id) ? 'possible' : 'none';
 }
 
-export function buildJobHealth(
-  job: Job,
-  options?: {
-    duplicateCandidates?: DuplicateCandidate[];
-    followUp?: JobFollowUp | null;
-    now?: Date;
-  }
-): JobHealth {
+export function buildJobHealth(job: Job, options?: { duplicateCandidates?: DuplicateCandidate[]; followUp?: JobFollowUp | null; now?: Date; }): JobHealth {
   const now = options?.now ?? new Date();
   const duplicateSeverity = getDuplicateSeverity(job, options?.duplicateCandidates ?? []);
   const ageState = getAgeState(job, now);

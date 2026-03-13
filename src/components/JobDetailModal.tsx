@@ -153,7 +153,7 @@ interface EditableMainFieldProps {
   onSave: (value: string) => void;
 }
 
-function EditableMainField({ label, value, placeholder = 'â€”', type = 'text', icon, onSave }: EditableMainFieldProps) {
+function EditableMainField({ label, value, placeholder = '—', type = 'text', icon, onSave }: EditableMainFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -341,8 +341,8 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
   const shortId = localJob.id.split('-')[0].toUpperCase();
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-[1240px] h-[90vh] overflow-hidden flex flex-col font-sans">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-[1240px] h-[90vh] overflow-hidden flex flex-col font-sans" onClick={(e) => e.stopPropagation()}>
         
         {/* Header Bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-white">
@@ -446,7 +446,7 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                   </span>
                 )}
                 
-                <span>â€¢</span>
+                <span>•</span>
                 
                 {isEditingUrl ? (
                   <input
@@ -492,7 +492,7 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                   </div>
                 )}
 
-                <span>â€¢</span>
+                <span>•</span>
                 <span className="text-xs">{Math.floor((new Date().getTime() - new Date(localJob.date_added).getTime()) / (1000 * 60 * 60 * 24))}d ago</span>
               </div>
             </div>
@@ -819,4 +819,5 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
 }
 
 const Plus = ({ className }: { className?: string }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+
 

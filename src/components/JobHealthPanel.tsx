@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Copy, Loader2, Sparkles } from 'lucide-react';
+import { CheckCircle2, Copy, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { findDuplicateCandidates } from '../services/duplicates';
 import { generateFollowUpDraft } from '../services/followUpDrafting';
-import { createSuggestedFollowUp, dismissFollowUp, getLatestFollowUpForJob, markFollowUpSent, saveFollowUpDraft } from '../services/followUps';
+import { createSuggestedFollowUp, dismissFollowUp, getLatestFollowUpForJob, markFollowUpSent, resetFollowUpDefault, saveFollowUpDraft } from '../services/followUps';
 import { DuplicateCandidate, Job, JobComment, JobFollowUp } from '../types';
-import { getDaysSince, getJobReferenceDate, getSuggestedFollowUp } from '../utils/jobHealth';
+import { DEFAULT_FOLLOW_UP_BUSINESS_DAYS, getDaysSince, getFollowUpLabel, getJobReferenceDate, getSuggestedFollowUp, isSuggestedFollowUpDue } from '../utils/jobHealth';
 import { supabase } from '../lib/supabase';
 
 interface JobHealthPanelProps {
@@ -28,25 +28,15 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
       setLoading(true);
       try {
         const [duplicateData, followUpData, commentsData] = await Promise.all([
-          findDuplicateCandidates({
-            userId: job.user_id,
-            company: job.company,
-            jobTitle: job.job_title,
-            jobUrl: job.job_url || null,
-          }),
+          findDuplicateCandidates({ userId: job.user_id, company: job.company, jobTitle: job.job_title, jobUrl: job.job_url || null }),
           getLatestFollowUpForJob(job.id),
-          supabase
-            .from('job_comments')
-            .select('*')
-            .eq('job_id', job.id)
-            .order('created_at', { ascending: false })
-            .limit(3),
+          supabase.from('job_comments').select('*').eq('job_id', job.id).order('created_at', { ascending: false }).limit(3),
         ]);
 
         if (!active) return;
         setDuplicates(duplicateData.filter(candidate => candidate.id !== job.id));
         setFollowUp(followUpData);
-        setRecentComments(((commentsData.data ?? []) as JobComment[]));
+        setRecentComments((commentsData.data ?? []) as JobComment[]);
       } catch (error) {
         console.error('Failed to load job health data:', error);
       } finally {
@@ -55,13 +45,11 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
     };
 
     void load();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [job.company, job.id, job.job_title, job.job_url, job.user_id]);
 
   const suggestedFollowUp = useMemo(() => getSuggestedFollowUp(job), [job]);
+  const suggestionDue = useMemo(() => isSuggestedFollowUpDue(job), [job]);
 
   const ensureFollowUp = async () => {
     if (followUp) return followUp;
@@ -122,6 +110,18 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
     }
   };
 
+  const handleReset = async () => {
+    if (!followUp) return;
+    setWorking(true);
+    try {
+      const updated = await resetFollowUpDefault(followUp.id);
+      setFollowUp(updated);
+      onUpdate();
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const copyDraft = async () => {
     if (!followUp?.draft_body) return;
     await navigator.clipboard.writeText(followUp.draft_body);
@@ -144,9 +144,7 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
                     <div className="text-sm font-semibold text-slate-900">{candidate.company} · {candidate.job_title}</div>
                     <div className="text-xs text-slate-500">{candidate.reason.replace(/_/g, ' ')}</div>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${candidate.severity === 'exact' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
-                    {candidate.severity}
-                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${candidate.severity === 'exact' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{candidate.severity}</span>
                 </div>
               </div>
             ))}
@@ -161,23 +159,19 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
         </div>
 
         {!followUp && suggestedFollowUp && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 mb-3">
-            <div className="font-semibold">Follow-up recommended</div>
+          <div className={`rounded-lg border px-3 py-3 text-sm mb-3 ${suggestionDue ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-sky-200 bg-sky-50 text-sky-800'}`}>
+            <div className="font-semibold">{suggestionDue ? 'Follow-up recommended' : 'Follow-up scheduled'}</div>
             <div className="mt-1">{suggestedFollowUp.reason}</div>
-            <button
-              onClick={handleGenerateDraft}
-              disabled={working}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-white font-semibold disabled:opacity-50"
-            >
+            <div className="mt-1 text-xs">Default target: {DEFAULT_FOLLOW_UP_BUSINESS_DAYS} business days</div>
+            <div className="mt-1 text-xs">Due on {new Date(suggestedFollowUp.dueAt).toLocaleDateString()}</div>
+            <button onClick={handleGenerateDraft} disabled={working} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-white font-semibold disabled:opacity-50">
               <Sparkles className="w-4 h-4" />
               Create draft
             </button>
           </div>
         )}
 
-        {!followUp && !suggestedFollowUp && (
-          <p className="text-sm text-slate-500">No follow-up needed based on the current job status and activity.</p>
-        )}
+        {!followUp && !suggestedFollowUp && <p className="text-sm text-slate-500">No follow-up needed based on the current job status and activity.</p>}
 
         {followUp && (
           <div className="space-y-3">
@@ -186,17 +180,14 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
                 <div>
                   <div className="text-sm font-semibold text-slate-900 capitalize">{followUp.status}</div>
                   <div className="text-xs text-slate-500">{followUp.reason}</div>
+                  <div className="text-xs text-slate-500 mt-1">{getFollowUpLabel(followUp)}</div>
                 </div>
                 {followUp.status === 'sent' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
               </div>
             </div>
 
             {!followUp.draft_body && followUp.status !== 'dismissed' && followUp.status !== 'sent' && (
-              <button
-                onClick={handleGenerateDraft}
-                disabled={working}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
+              <button onClick={handleGenerateDraft} disabled={working} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">
                 <Sparkles className="w-4 h-4" />
                 Generate draft
               </button>
@@ -213,20 +204,21 @@ export function JobHealthPanel({ job, onUpdate }: JobHealthPanelProps) {
               </div>
             )}
 
-            {followUp.status !== 'sent' && followUp.status !== 'dismissed' && (
-              <div className="flex items-center gap-2">
-                <button onClick={handleMarkSent} disabled={working} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">
-                  Mark sent
-                </button>
-                <button onClick={handleDismiss} disabled={working} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:opacity-50">
-                  Dismiss
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              {followUp.status !== 'sent' && followUp.status !== 'dismissed' && (
+                <>
+                  <button onClick={handleMarkSent} disabled={working} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Mark sent</button>
+                  <button onClick={handleDismiss} disabled={working} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:opacity-50">Dismiss</button>
+                </>
+              )}
+              <button onClick={handleReset} disabled={working} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:opacity-50">
+                <RotateCcw className="w-4 h-4" />
+                Reset +{DEFAULT_FOLLOW_UP_BUSINESS_DAYS} business days
+              </button>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-

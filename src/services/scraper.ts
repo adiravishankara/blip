@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { hasExactDuplicate } from './duplicates';
 import { getActiveFirecrawlUrl } from '../utils/storage';
+import { sanitizeJobUrl } from '../utils/jobNormalization';
 
 export type ScrapingStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -238,3 +239,4 @@ export async function processScrapingJob(jobId: string): Promise<boolean> {
     return true;
   }
 }
+

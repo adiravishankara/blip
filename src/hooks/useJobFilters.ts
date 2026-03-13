@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Job, JobPriority, JobStatus } from '../types';
-import { getAgeState, getSuggestedFollowUp } from '../utils/jobHealth';
+import { getAgeState, isSuggestedFollowUpDue } from '../utils/jobHealth';
 
 export interface FilterState {
   search: string;
@@ -73,7 +73,7 @@ export function useJobFilters(jobs: Job[]) {
       }
 
       const ageState = getAgeState(job);
-      const hasFollowUpDue = !!getSuggestedFollowUp(job);
+      const hasFollowUpDue = isSuggestedFollowUpDue(job);
       const needsAttention = ageState !== 'healthy' || hasFollowUpDue;
 
       if (filters.attentionOnly && !needsAttention) {
@@ -108,3 +108,4 @@ export function useJobFilters(jobs: Job[]) {
     availableCompanies,
   };
 }
+
