@@ -2,6 +2,10 @@ export type JobStatus = 'saved' | 'applying' | 'applied' | 'interviewing' | 'acc
 export type JobPriority = 'low' | 'medium' | 'high' | 'critical';
 export type WorkMode = 'remote' | 'hybrid' | 'onsite';
 export type WorkModePreference = 'remote' | 'hybrid' | 'onsite' | 'any';
+export type DuplicateSeverity = 'none' | 'possible' | 'exact';
+export type AgeState = 'healthy' | 'warning' | 'overdue';
+export type FollowUpState = 'none' | 'upcoming' | 'due' | 'dismissed' | 'sent';
+export type JobFollowUpStatus = 'suggested' | 'drafted' | 'sent' | 'dismissed';
 
 export interface Job {
   id: string;
@@ -23,12 +27,15 @@ export interface Job {
   notes?: string | null;
   contact_person?: string | null;
   referred_by?: string | null;
+  normalized_job_url?: string | null;
+  normalized_title?: string | null;
+  last_meaningful_activity_at?: string | null;
   // Extended fields
   work_mode?: WorkMode | null;
-  application_deadline?: string | null;  // ISO date string
-  interview_date?: string | null;         // ISO datetime string
+  application_deadline?: string | null;
+  interview_date?: string | null;
   offer_amount?: number | null;
-  match_score?: number | null;            // 0-100
+  match_score?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +55,38 @@ export interface JobStatusHistoryEntry {
   from_status: JobStatus | null;
   to_status: JobStatus;
   changed_at: string;
+}
+
+export interface DuplicateCandidate {
+  id: string;
+  company: string;
+  job_title: string;
+  job_url?: string | null;
+  severity: DuplicateSeverity;
+  reason: string;
+}
+
+export interface JobHealth {
+  duplicateSeverity: DuplicateSeverity;
+  ageState: AgeState;
+  ageLabel: string | null;
+  followUpState: FollowUpState;
+  followUpLabel: string | null;
+}
+
+export interface JobFollowUp {
+  id: string;
+  job_id: string;
+  user_id: string;
+  due_at: string;
+  status: JobFollowUpStatus;
+  reason: string;
+  draft_subject?: string | null;
+  draft_body?: string | null;
+  sent_at?: string | null;
+  dismissed_at?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ResumeLink {
