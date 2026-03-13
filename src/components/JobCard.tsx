@@ -1,11 +1,14 @@
+import { useMemo } from 'react';
 import { Job } from '../types';
 import { Calendar, Flag, ExternalLink } from 'lucide-react';
+import { buildJobHealth, getSuggestedFollowUp } from '../utils/jobHealth';
 
 interface JobCardProps {
   job: Job;
   onClick: () => void;
   selectionMode?: boolean;
   isSelected?: boolean;
+  allJobs?: Job[];
 }
 
 const PRIORITY_ICON = {
@@ -15,15 +18,45 @@ const PRIORITY_ICON = {
   critical: <Flag className="w-3.5 h-3.5 text-red-500 fill-red-500" />,
 };
 
-export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProps) {
+export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] }: JobCardProps) {
   const daysSinceAdded = Math.floor(
     (new Date().getTime() - new Date(job.date_added).getTime()) / (1000 * 60 * 60 * 24)
   );
 
+  const health = useMemo(() => {
+    const duplicateCandidates = allJobs
+      .filter(other => other.id !== job.id)
+      .filter(other => {
+        const sameUrl = job.normalized_job_url && other.normalized_job_url && job.normalized_job_url === other.normalized_job_url;
+        const sameCompanyTitle =
+          other.company.trim().toLowerCase() === job.company.trim().toLowerCase() &&
+          other.normalized_title &&
+          job.normalized_title &&
+          other.normalized_title === job.normalized_title;
+
+        return Boolean(sameUrl || sameCompanyTitle);
+      })
+      .map(other => ({
+        id: other.id,
+        company: other.company,
+        job_title: other.job_title,
+        job_url: other.job_url,
+        severity: 'exact' as const,
+        reason: other.normalized_job_url === job.normalized_job_url ? 'matching_url' : 'matching_company_title',
+      }));
+
+    return buildJobHealth(job, {
+      duplicateCandidates,
+      followUp: null,
+    });
+  }, [allJobs, job]);
+
+  const suggestedFollowUp = getSuggestedFollowUp(job);
+
   return (
     <div
       onClick={onClick}
-      className={`h-[120px] min-h-[120px] max-h-[120px] flex flex-col overflow-hidden bg-white rounded border p-3 shadow-sm transition-all group select-none relative cursor-pointer
+      className={`h-[132px] min-h-[132px] max-h-[132px] flex flex-col overflow-hidden bg-white rounded border p-3 shadow-sm transition-all group select-none relative cursor-pointer
         ${selectionMode && isSelected ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500' : 'border-gray-200 hover:bg-blue-50/30'}
       `}
     >
@@ -36,7 +69,6 @@ export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProp
       )}
 
       <div className="flex flex-col gap-2 min-h-0 flex-1">
-        {/* Title and Company */}
         <div className="min-w-0 flex-1">
           <h3 className="text-[13px] font-medium text-gray-800 leading-tight group-hover:text-blue-600 transition-colors mb-1 truncate" title={job.job_title}>
             {job.job_title}
@@ -46,10 +78,10 @@ export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProp
               {job.company}
             </span>
             {job.job_url && (
-              <a 
-                href={job.job_url} 
-                target="_blank" 
-                rel="noopener noreferrer" 
+              <a
+                href={job.job_url}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="text-gray-400 hover:text-blue-500 transition-colors"
                 title="View Job Posting"
@@ -60,12 +92,33 @@ export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProp
           </div>
         </div>
 
-        {/* Small Metadata - Days on board and Priority only */}
+        <div className="flex flex-wrap gap-1 min-h-[24px]">
+          {health.duplicateSeverity !== 'none' && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              health.duplicateSeverity === 'exact' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              {health.duplicateSeverity === 'exact' ? 'Duplicate' : 'Possible duplicate'}
+            </span>
+          )}
+          {health.ageState !== 'healthy' && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              health.ageState === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              {health.ageLabel}
+            </span>
+          )}
+          {!health.ageLabel && suggestedFollowUp && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+              Follow up due
+            </span>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mt-1 pt-2 border-t border-gray-100/50">
           <div className="flex items-center gap-2">
             <div>{PRIORITY_ICON[job.priority]}</div>
           </div>
-          
+
           <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
             <Calendar className="w-2.5 h-2.5" />
             <span>{daysSinceAdded}d</span>
@@ -75,4 +128,3 @@ export function JobCard({ job, onClick, selectionMode, isSelected }: JobCardProp
     </div>
   );
 }
-

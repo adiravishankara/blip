@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Job, JobStatus } from '../types';
 import { supabase } from '../lib/supabase';
 import { JobCard } from './JobCard';
+import { getAgeState, getSuggestedFollowUp } from '../utils/jobHealth';
 
 const COLUMNS: { status: JobStatus; label: string; color: string }[] = [
   { status: 'saved', label: 'BACKLOG', color: 'bg-gray-100' },
@@ -29,12 +30,21 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
   const [dragOverStatus, setDragOverStatus] = useState<JobStatus | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
+  const jobsByStatus = useMemo(() => {
+    return COLUMNS.reduce<Record<JobStatus, Job[]>>((acc, column) => {
+      const columnJobs = jobs.filter(job => job.status === column.status);
+      acc[column.status] = [...columnJobs].sort((a, b) => {
+        const aAttention = Number(getAgeState(a) === 'overdue' || !!getSuggestedFollowUp(a));
+        const bAttention = Number(getAgeState(b) === 'overdue' || !!getSuggestedFollowUp(b));
+        if (aAttention !== bAttention) return bAttention - aAttention;
+        return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
+      });
+      return acc;
+    }, {} as Record<JobStatus, Job[]>);
+  }, [jobs]);
+
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
-  };
-
-  const getJobsByStatus = (status: JobStatus) => {
-    return jobs.filter(job => job.status === status);
   };
 
   const handleDragStart = (e: React.DragEvent, jobId: string) => {
@@ -97,8 +107,10 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
   return (
     <div className="flex gap-4 overflow-x-auto pb-8 h-full min-h-[calc(100vh-280px)] px-8">
       {COLUMNS.map(column => {
-        const columnJobs = getJobsByStatus(column.status);
+        const columnJobs = jobsByStatus[column.status] ?? [];
         const isBeingDraggedOver = dragOverStatus === column.status;
+        const attentionCount = columnJobs.filter(job => getAgeState(job) === 'overdue' || !!getSuggestedFollowUp(job)).length;
+
         return (
           <div key={column.status} className="flex-shrink-0 w-[280px] flex flex-col">
             <div className="px-2 py-3 flex items-center gap-2">
@@ -108,6 +120,11 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
               <span className="bg-gray-200 px-1.5 py-0.5 rounded text-[10px] font-bold text-gray-600">
                 {columnJobs.length}
               </span>
+              {attentionCount > 0 && (
+                <span className="bg-rose-50 px-1.5 py-0.5 rounded text-[10px] font-bold text-rose-700">
+                  {attentionCount} attention
+                </span>
+              )}
             </div>
 
             <div
@@ -142,17 +159,16 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
                         }}
                         selectionMode={selectionMode}
                         isSelected={selectedJobs?.has(job.id)}
+                        allJobs={jobs}
                       />
                     </div>
                   ));
                 }
 
-                // Group by company logic
                 const groups: Record<string, Job[]> = {};
                 const singles: Job[] = [];
-
-                // First count roles per company in this column
                 const companyCounts: Record<string, number> = {};
+
                 for (const job of columnJobs) {
                   const comp = job.company || 'Unknown';
                   companyCounts[comp] = (companyCounts[comp] || 0) + 1;
@@ -180,18 +196,15 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
                             className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-sm font-medium text-gray-700 outline-none"
                           >
                             <div className="flex z-10 items-center justify-between gap-2 overflow-hidden w-full">
-                                <span className="truncate text-xs font-bold text-gray-600">{comp}</span>
-                                <div className="flex items-center gap-2">
+                              <span className="truncate text-xs font-bold text-gray-600">{comp}</span>
+                              <div className="flex items-center gap-2">
                                 <span className="flex-shrink-0 bg-gray-200 px-1.5 py-0.5 rounded text-[10px] font-bold text-gray-700">
                                   {groupJobs.length} roles
                                 </span>
-                                <svg 
-                                    className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} 
-                                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                <svg className={`w-4 h-4 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
-                                </div>
+                              </div>
                             </div>
                           </button>
                           {!isCollapsed && (
@@ -218,6 +231,7 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
                                     }}
                                     selectionMode={selectionMode}
                                     isSelected={selectedJobs?.has(job.id)}
+                                    allJobs={jobs}
                                   />
                                 </div>
                               ))}
@@ -248,6 +262,7 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
                           }}
                           selectionMode={selectionMode}
                           isSelected={selectedJobs?.has(job.id)}
+                          allJobs={jobs}
                         />
                       </div>
                     ))}
@@ -256,9 +271,7 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
               })()}
 
               {columnJobs.length === 0 && !isBeingDraggedOver && (
-                <div className="text-center text-gray-400 text-[11px] py-12 font-medium">
-                  {/* Empty space */}
-                </div>
+                <div className="text-center text-gray-400 text-[11px] py-12 font-medium"></div>
               )}
             </div>
           </div>
@@ -267,4 +280,3 @@ export function KanbanBoard({ jobs, loading, onSelectJob, onUpdate, selectionMod
     </div>
   );
 }
-

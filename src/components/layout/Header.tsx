@@ -1,5 +1,6 @@
 import { useAuth } from '../../context/AuthContext';
 import { Search, Bell, HelpCircle, Grid } from 'lucide-react';
+import { ConnectionStatus } from './ConnectionStatus';
 
 interface HeaderProps {
   onSearchChange?: (value: string) => void;
@@ -27,7 +28,6 @@ export function Header({
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 cursor-pointer">
           <img src="/public/assets/blip_logo.png" alt="Blip Logo" className="w-16 h-16 object-contain" />
-          {/* <span className="font-bold text-gray-800 text-lg tracking-tight">blip</span> */}
         </div>
 
         <nav className="hidden md:flex items-center gap-4 h-full ml-4">
@@ -54,6 +54,8 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-2">
+        <ConnectionStatus />
+
         <div className="relative mr-2">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -83,7 +85,6 @@ export function Header({
             </div>
           </button>
           
-          {/* Dropdown with invisible bridge to prevent mouse-out */}
           <div className="absolute right-0 top-full pt-2 w-52 hidden group-hover:block animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="bg-white border border-gray-200 rounded-xl shadow-2xl py-1 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">

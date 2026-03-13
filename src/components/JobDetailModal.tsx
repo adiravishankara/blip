@@ -3,6 +3,7 @@ import { Job, JobStatus, JobComment, JobPriority, WorkMode, JobStatusHistoryEntr
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
+import { JobHealthPanel } from './JobHealthPanel';
 import {
   X, ExternalLink, Send,
   FileText, MoreVertical, Trash2, Copy,
@@ -608,6 +609,8 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
               </div>
             </CollapsibleSection>
 
+            <JobHealthPanel job={localJob} onUpdate={onUpdate} />
+
             <div className="mt-8 border-t border-slate-100 pt-6">
               <div className="flex items-center gap-6 mb-6 border-b border-slate-100">
                 <button
@@ -816,3 +819,4 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
 }
 
 const Plus = ({ className }: { className?: string }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+

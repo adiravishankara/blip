@@ -166,7 +166,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
       
       console.log('Saving profile payload:', payload);
 
-      const { data, error, status } = await supabase
+      const { error, status } = await supabase
         .from('user_profiles')
         .upsert(payload, { onConflict: 'user_id' });
 
@@ -426,3 +426,4 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
     </div>
   );
 }
+

@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { CityAutocomplete } from './CityAutocomplete';
+import { findDuplicateCandidates } from '../services/duplicates';
+import { DuplicateCandidate } from '../types';
 
 interface AddJobModalProps {
   onClose: () => void;
@@ -23,17 +25,8 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    // Escape key listener
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
 
   const [formData, setFormData] = useState({
     job_title: initialData?.job_title || '',
@@ -49,9 +42,57 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
     notes: initialData?.notes || '',
   });
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!formData.company.trim() || !formData.job_title.trim()) {
+      setDuplicateCandidates([]);
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        setCheckingDuplicates(true);
+        const candidates = await findDuplicateCandidates({
+          userId: user.id,
+          company: formData.company,
+          jobTitle: formData.job_title,
+          jobUrl: formData.job_url || null,
+        });
+        setDuplicateCandidates(candidates);
+      } catch (lookupError) {
+        console.error('Duplicate lookup failed:', lookupError);
+      } finally {
+        setCheckingDuplicates(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [formData.company, formData.job_title, formData.job_url, user]);
+
+  const hasExactDuplicate = useMemo(
+    () => duplicateCandidates.some(candidate => candidate.severity === 'exact'),
+    [duplicateCandidates]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (hasExactDuplicate) {
+      setError('This job appears to already exist in your tracker. Open the existing entry or remove the duplicate input.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -73,7 +114,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
         job_description: formData.job_description || null,
         notes: formData.notes || null,
         status: 'saved',
-        priority: 'medium', // Default priority
+        priority: 'medium',
       });
 
       if (insertError) throw insertError;
@@ -90,10 +131,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">Add New Job</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -101,9 +139,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Job Title *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Job Title *</label>
               <input
                 type="text"
                 value={formData.job_title}
@@ -114,9 +150,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Company *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
               <input
                 type="text"
                 value={formData.company}
@@ -127,9 +161,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Job URL
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Job URL</label>
               <input
                 type="url"
                 value={formData.job_url}
@@ -139,10 +171,38 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
               />
             </div>
 
+            {(checkingDuplicates || duplicateCandidates.length > 0) && (
+              <div className={`col-span-2 rounded-lg border px-4 py-3 text-sm ${hasExactDuplicate ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                <div className="font-semibold">
+                  {checkingDuplicates ? 'Checking duplicates...' : hasExactDuplicate ? 'Exact duplicate found' : 'Possible duplicates found'}
+                </div>
+                {!checkingDuplicates && duplicateCandidates.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {duplicateCandidates.slice(0, 3).map(candidate => (
+                      <div key={candidate.id} className="flex items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="font-semibold text-gray-900">{candidate.company} · {candidate.job_title}</div>
+                          <div className="text-gray-500">{candidate.reason.replace(/_/g, ' ')}</div>
+                        </div>
+                        {candidate.job_url && (
+                          <a
+                            href={candidate.job_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 rounded-md border border-current px-2 py-1 font-semibold"
+                          >
+                            Open link
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Location
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
               <CityAutocomplete
                 initialValue={formData.location}
                 onSelect={(location) => setFormData({ ...formData, location })}
@@ -152,9 +212,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Pay Scale
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pay Scale</label>
               <input
                 type="text"
                 value={formData.pay_scale}
@@ -165,9 +223,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Team
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
               <input
                 type="text"
                 value={formData.team}
@@ -177,9 +233,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contact Person
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
               <input
                 type="text"
                 value={formData.contact_person}
@@ -189,9 +243,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Referred By
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Referred By</label>
               <input
                 type="text"
                 value={formData.referred_by}
@@ -201,9 +253,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Keywords
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Keywords</label>
               <input
                 type="text"
                 value={formData.keywords}
@@ -214,9 +264,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Job Description
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
               <textarea
                 value={formData.job_description}
                 onChange={(e) => setFormData({ ...formData, job_description: e.target.value })}
@@ -226,9 +274,7 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -238,23 +284,15 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
             </div>
           </div>
 
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+          {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
 
           <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition"
-            >
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition">
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || checkingDuplicates}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
             >
               {loading ? 'Adding...' : 'Add Job'}
@@ -265,3 +303,4 @@ export function AddJobModal({ onClose, onSuccess, initialData }: AddJobModalProp
     </div>
   );
 }
+

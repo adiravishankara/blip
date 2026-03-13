@@ -11,7 +11,6 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ filters, setFilter, availableCompanies, onClear, userInitials = 'JD' }: FilterBarProps) {
-
   return (
     <div className="bg-white px-8 py-4 flex flex-wrap items-center gap-4 border-b border-gray-100">
       <div className="relative">
@@ -26,20 +25,18 @@ export function FilterBar({ filters, setFilter, availableCompanies, onClear, use
       </div>
 
       <div className="flex -space-x-1">
-        <div 
-          className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold uppercase bg-indigo-500"
-        >
+        <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold uppercase bg-indigo-500">
           {userInitials}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="relative group">
           <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm font-medium text-gray-700 transition-colors">
             Company
             <ChevronDown className="w-4 h-4" />
           </button>
-          
+
           <div className="absolute left-0 top-full pt-2 w-52 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-200">
             <div className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 overflow-hidden max-h-[300px] overflow-y-auto">
               <div className="px-4 py-1.5 border-b border-gray-50 mb-1">
@@ -98,71 +95,52 @@ export function FilterBar({ filters, setFilter, availableCompanies, onClear, use
           </div>
         </div>
 
-        <button 
+        <button
           onClick={() => setFilter('hasResume', filters.hasResume === true ? null : true)}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors
-            ${filters.hasResume === true ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'}`}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+            filters.hasResume === true ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'
+          }`}
         >
           Has Resume
         </button>
 
-        <button 
+        <button
           onClick={() => setFilter('groupByCompany', !filters.groupByCompany)}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors
-            ${filters.groupByCompany ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'}`}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+            filters.groupByCompany ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'
+          }`}
         >
           Group by Company
         </button>
 
-        <div className="h-6 w-px bg-gray-200 mx-2" />
-
-        <div className="relative group">
-          <button 
-            className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm font-medium text-gray-700 transition-colors"
-          >
-            Quick filters
-            <ChevronDown className="w-4 h-4" />
-          </button>
-          <div className="absolute left-0 top-full pt-2 w-56 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-            <div className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 overflow-hidden">
-              <div className="px-4 py-1.5 border-b border-gray-50 mb-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Quick Shortcuts</span>
-              </div>
-              <button 
-                onClick={() => {
-                  setFilter('priorities', ['high', 'critical']);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
-              >
-                <div className="w-6 text-center">🔥</div>
-                <span className="font-medium">High Priority roles</span>
-              </button>
-              <button 
-                onClick={() => {
-                  setFilter('status', ['interviewing']);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
-              >
-                <div className="w-6 text-center">📅</div>
-                <span className="font-medium">In Interview Process</span>
-              </button>
-              <button 
-                onClick={() => {
-                  setFilter('hasResume', true);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-3"
-              >
-                <div className="w-6 text-center">📄</div>
-                <span className="font-medium">Applied w/ Resume</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <button 
-          onClick={onClear}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900 ml-2"
+        <button
+          onClick={() => setFilter('attentionOnly', !filters.attentionOnly)}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+            filters.attentionOnly ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'
+          }`}
         >
+          Needs Attention
+        </button>
+
+        <button
+          onClick={() => setFilter('overdueOnly', !filters.overdueOnly)}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+            filters.overdueOnly ? 'bg-rose-500 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'
+          }`}
+        >
+          Overdue
+        </button>
+
+        <button
+          onClick={() => setFilter('followUpDueOnly', !filters.followUpDueOnly)}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+            filters.followUpDueOnly ? 'bg-emerald-600 text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'
+          }`}
+        >
+          Follow Up Due
+        </button>
+
+        <button onClick={onClear} className="text-sm font-medium text-gray-500 hover:text-gray-900 ml-2">
           Clear all
         </button>
       </div>
