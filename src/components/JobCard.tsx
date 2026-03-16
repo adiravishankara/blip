@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Job } from '../types';
-import { Calendar, Flag, ExternalLink } from 'lucide-react';
+import { Calendar, Flag, ExternalLink, Copy, Check } from 'lucide-react';
 import { buildJobHealth, isSuggestedFollowUpDue } from '../utils/jobHealth';
 
 interface JobCardProps {
@@ -52,6 +52,21 @@ export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] 
   }, [allJobs, job]);
 
   const followUpDue = isSuggestedFollowUpDue(job);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPrompt = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const prompt = `Read the docs, and edit the resume for the following role.
+Role:
+${job.job_title} - ${job.company}
+${job.job_description ?? ''}
+
+Resume:
+`;
+    navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div
@@ -119,9 +134,20 @@ export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] 
             <div>{PRIORITY_ICON[job.priority]}</div>
           </div>
 
-          <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-            <Calendar className="w-2.5 h-2.5" />
-            <span>{daysSinceAdded}d</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyPrompt}
+              title="Copy resume prompt"
+              className={`opacity-0 group-hover:opacity-100 transition-all p-0.5 rounded ${
+                copied ? 'text-emerald-500' : 'text-gray-400 hover:text-blue-500'
+              }`}
+            >
+              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </button>
+            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+              <Calendar className="w-2.5 h-2.5" />
+              <span>{daysSinceAdded}d</span>
+            </div>
           </div>
         </div>
       </div>

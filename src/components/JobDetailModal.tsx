@@ -6,7 +6,7 @@ import { resolveResumeUrl } from '../utils/storage';
 import { JobHealthPanel } from './JobHealthPanel';
 import {
   X, ExternalLink, Send,
-  FileText, MoreVertical, Trash2, Copy,
+  FileText, MoreVertical, Trash2, Copy, Check,
   User, Link2, ClipboardList, ChevronDown, ChevronUp,
   Share2, Eye, Bolt
 } from 'lucide-react';
@@ -119,23 +119,27 @@ interface CollapsibleSectionProps {
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  action?: React.ReactNode;
 }
 
-function CollapsibleSection({ title, icon, children, defaultOpen = true }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, icon, children, defaultOpen = true, action }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
     <div className="border-b border-slate-100 last:border-0 py-4">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 w-full text-left group"
-      >
-        {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
-        <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          {icon}
-          {title}
-        </span>
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 text-left group"
+        >
+          {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+          <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            {icon}
+            {title}
+          </span>
+        </button>
+        {action && <div onClick={e => e.stopPropagation()}>{action}</div>}
+      </div>
       {isOpen && <div className="mt-4 pl-6 text-sm text-slate-600 leading-relaxed">{children}</div>}
     </div>
   );
@@ -153,7 +157,7 @@ interface EditableMainFieldProps {
   onSave: (value: string) => void;
 }
 
-function EditableMainField({ label, value, placeholder = '—', type = 'text', icon, onSave }: EditableMainFieldProps) {
+function EditableMainField({ label, value, placeholder = '?', type = 'text', icon, onSave }: EditableMainFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +242,14 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
 
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [descCopied, setDescCopied] = useState(false);
+
+  const handleCopyDescPrompt = () => {
+    const prompt = `Read the docs, and edit the resume for the following role.\nRole:\n${localJob.job_title} - ${localJob.company}\n${localJob.job_description ?? ''}\n\nResume:\n`;
+    navigator.clipboard.writeText(prompt);
+    setDescCopied(true);
+    setTimeout(() => setDescCopied(false), 2000);
+  };
   
   // Header Editing States
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -413,7 +425,7 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                   onClick={() => setIsEditingTitle(true)}
                   className="text-2xl font-bold text-slate-900 mb-2 cursor-pointer hover:bg-slate-50 rounded px-1 -ml-1 transition"
                 >
-                  {localJob.job_title}
+                  {localJob.job_title || <span className="text-slate-300 italic font-normal">Untitled Position</span>}
                 </h1>
               )}
 
@@ -442,11 +454,11 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                     onClick={() => setIsEditingCompany(true)}
                     className="font-medium text-slate-700 cursor-pointer hover:bg-slate-50 rounded px-1 -ml-1 transition"
                   >
-                    {localJob.company}
+                    {localJob.company || <span className="text-slate-300 italic font-normal">Unknown Company</span>}
                   </span>
                 )}
                 
-                <span>•</span>
+                <span className="text-slate-300 select-none">&middot;</span>
                 
                 {isEditingUrl ? (
                   <input
@@ -492,7 +504,7 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                   </div>
                 )}
 
-                <span>•</span>
+                <span className="text-slate-300 select-none">&middot;</span>
                 <span className="text-xs">{Math.floor((new Date().getTime() - new Date(localJob.date_added).getTime()) / (1000 * 60 * 60 * 24))}d ago</span>
               </div>
             </div>
@@ -506,7 +518,22 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
               </button>
             </div>
 
-            <CollapsibleSection title="Description" icon={<FileText className="w-4 h-4 text-slate-500" />}>
+            <CollapsibleSection
+              title="Description"
+              icon={<FileText className="w-4 h-4 text-slate-500" />}
+              action={
+                <button
+                  onClick={handleCopyDescPrompt}
+                  title="Copy resume prompt"
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                    descCopied ? 'text-emerald-500' : 'text-slate-400 hover:text-blue-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {descCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {descCopied ? 'Copied!' : 'Copy prompt'}
+                </button>
+              }
+            >
               <div
                 onClick={() => setIsEditingDesc(true)}
                 className={`p-3 rounded-md transition-all cursor-text min-h-[4rem] group/desc border ${
@@ -737,6 +764,22 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                     {WORK_MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
+
+                <EditableGridField
+                  label="Job Title"
+                  value={localJob.job_title}
+                  placeholder="Untitled Position"
+                  onSave={v => updateField({ job_title: v || '' })}
+                />
+
+                <EditableGridField
+                  label="Company"
+                  value={localJob.company}
+                  placeholder="Unknown Company"
+                  onSave={v => updateField({ company: v || '' })}
+                />
+
+                <div className="h-2" />
 
                 <EditableGridField
                   label="Location"
