@@ -1,9 +1,9 @@
 import { supabase } from '../lib/supabase';
 import { hasExactDuplicate } from './duplicates';
 import { getActiveFirecrawlUrl } from '../utils/storage';
-import { sanitizeJobUrl } from '../utils/jobNormalization';
 
 export type ScrapingStatus = 'pending' | 'processing' | 'completed' | 'failed';
+const SCRAPING_JOB_TIMEOUT_MS = 60_000;
 
 export interface ScrapingJob {
   id: string;
@@ -13,6 +13,7 @@ export interface ScrapingJob {
   error?: string;
   data?: unknown;
   created_at: string;
+  updated_at: string;
 }
 
 const API_KEY = import.meta.env.VITE_FIRECRAWL_API_KEY;
@@ -27,10 +28,44 @@ export interface ScrapedJobData {
 }
 
 export function cleanJobUrl(url: string): string {
-  try {
-    return url.split('?')[0];
-  } catch {
-    return url;
+  return url.trim();
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
+
+export async function failTimedOutScrapingJobs(userId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - SCRAPING_JOB_TIMEOUT_MS).toISOString();
+
+  const { error } = await supabase
+    .from('scraping_jobs')
+    .update({
+      status: 'failed',
+      error: 'Job timed out after 1 minute.',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .eq('status', 'processing')
+    .lt('updated_at', cutoff);
+
+  if (error) {
+    console.error('[Scraper] Error failing timed out jobs:', error);
   }
 }
 
@@ -165,7 +200,11 @@ export async function processScrapingJob(jobId: string): Promise<boolean> {
 
     if (jobError || !job) throw new Error('Job not found');
 
-    const scrapedData = await extractJobFromUrl(job.url);
+    const scrapedData = await withTimeout(
+      extractJobFromUrl(job.url),
+      SCRAPING_JOB_TIMEOUT_MS,
+      'Job timed out after 1 minute.'
+    );
     const duplicateExists = await hasExactDuplicate({
       userId: job.user_id,
       company: scrapedData.company_name,

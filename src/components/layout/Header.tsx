@@ -27,7 +27,7 @@ export function Header({
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 sticky top-0 z-50">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 cursor-pointer">
-          <img src="/public/assets/blip_logo.png" alt="Blip Logo" className="w-16 h-16 object-contain" />
+          <img src="/assets/blip_logo.png" alt="Blip Logo" className="w-16 h-16 object-contain" />
         </div>
 
         <nav className="hidden md:flex items-center gap-4 h-full ml-4">

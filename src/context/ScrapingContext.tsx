@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { ScrapingJob } from '../services/scraper';
+import { failTimedOutScrapingJobs, ScrapingJob } from '../services/scraper';
 
 interface ScrapingContextType {
   jobs: ScrapingJob[];
@@ -75,6 +75,9 @@ export function ScrapingProvider({ children }: { children: ReactNode }) {
     // Ping the backend every 3 seconds to ensure UI doesn't get stuck
     // just in case Realtime events are dropped or delayed
     const interval = setInterval(() => {
+      failTimedOutScrapingJobs(user.id).catch(error => {
+        console.error('[ScrapingContext] Failed to expire timed out jobs:', error);
+      });
       loadActiveJobs();
     }, 3000);
 
