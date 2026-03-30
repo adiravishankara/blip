@@ -1,0 +1,21 @@
+{
+  "name": "@blip/extension",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.315",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.2"
+  }
+}
+

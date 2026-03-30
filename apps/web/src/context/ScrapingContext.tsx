@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from './AuthContext';
 import { failTimedOutScrapingJobs, ScrapingJob } from '../services/scraper';
 
 interface ScrapingContextType {
