@@ -3,10 +3,12 @@ import { UserProfile, ResumeLink, WorkModePreference } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
+import { extractPdfText } from '../services/pdfText';
+import { embedText } from '../services/embeddings';
 import { CityAutocomplete } from './CityAutocomplete';
 import {
   X, Plus, Trash2, Save, User, MapPin, DollarSign, Briefcase,
-  Link2, FileText, Loader2,
+  Link2, FileText, Loader2, Upload,
 } from 'lucide-react';
 
 interface UserProfileModalProps {
@@ -104,9 +106,14 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
   const [saving, setSaving] = useState(false);
   const [newResume, setNewResume] = useState<ResumeLink>({ label: '', url: '' });
   const [saved, setSaved] = useState(false);
+  const [resumeVersions, setResumeVersions] = useState<any[]>([]);
+  const [resumeVersionLabel, setResumeVersionLabel] = useState('Primary');
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
+    loadResumeVersions();
   }, []);
 
   useEffect(() => {
@@ -152,6 +159,75 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
       console.error('Fatal loadProfile error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadResumeVersions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('resume_versions')
+        .select('id,label,storage_path,embedding_status,updated_at,created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) return;
+      setResumeVersions(data ?? []);
+    } catch {
+      // ignore for now; table may not exist until migrations applied
+    }
+  };
+
+  const handleUploadResumePdf = async (file: File) => {
+    if (!user) return;
+    setUploadError(null);
+    setUploadingResume(true);
+
+    try {
+      const id = crypto.randomUUID();
+      const storagePath = `${user.id}/${id}/${file.name}`;
+      const label = resumeVersionLabel.trim() || 'Resume';
+
+      const { error: insertErr } = await supabase.from('resume_versions').insert({
+        id,
+        user_id: user.id,
+        label,
+        storage_path: storagePath,
+        embedding_status: 'processing',
+        embedding_model: 'gte-small',
+      });
+      if (insertErr) throw insertErr;
+
+      const { error: uploadErr } = await supabase.storage.from('resumes').upload(storagePath, file, {
+        upsert: true,
+        contentType: 'application/pdf',
+      });
+      if (uploadErr) throw uploadErr;
+
+      const extractedText = await extractPdfText(file);
+      const { embedding, model } = await embedText(extractedText.slice(0, 20_000));
+
+      const { error: embErr } = await supabase.from('resume_version_embeddings').upsert({
+        resume_version_id: id,
+        model,
+        embedding,
+        updated_at: new Date().toISOString(),
+      });
+      if (embErr) throw embErr;
+
+      const { error: updateErr } = await supabase
+        .from('resume_versions')
+        .update({
+          extracted_text: extractedText,
+          embedding_status: 'ready',
+          embedding_model: model,
+        })
+        .eq('id', id);
+      if (updateErr) throw updateErr;
+
+      await loadResumeVersions();
+    } catch (err: any) {
+      setUploadError(err?.message ?? 'Failed to upload resume.');
+    } finally {
+      setUploadingResume(false);
     }
   };
 
@@ -350,7 +426,68 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
             {/* Resumes */}
             <section className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <Link2 className="w-4 h-4" /> Resume Links
+                <FileText className="w-4 h-4" /> Resume Versions (PDF)
+              </h3>
+
+              <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Label</label>
+                    <input
+                      type="text"
+                      value={resumeVersionLabel}
+                      onChange={e => setResumeVersionLabel(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400"
+                      placeholder="e.g. Hardware Engineer v3"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition border cursor-pointer ${
+                      uploadingResume ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                    }`}>
+                      {uploadingResume ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      {uploadingResume ? 'Uploading…' : 'Upload PDF'}
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        disabled={uploadingResume}
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!f) return;
+                          void handleUploadResumePdf(f);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {uploadError && (
+                  <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">
+                    {uploadError}
+                  </div>
+                )}
+
+                {(resumeVersions ?? []).length > 0 ? (
+                  <div className="space-y-2">
+                    {resumeVersions.map((rv) => (
+                      <div key={rv.id} className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">{rv.label}</div>
+                          <div className="text-xs text-gray-500 truncate">{rv.embedding_status}</div>
+                        </div>
+                        <div className="text-xs text-gray-400 font-mono">{String(rv.id).slice(0, 8)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Upload at least one PDF resume to enable matching.</p>
+                )}
+              </div>
+
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 pt-2">
+                <Link2 className="w-4 h-4" /> Resume Links (legacy)
               </h3>
 
               {(profile.resume_links ?? []).length > 0 && (

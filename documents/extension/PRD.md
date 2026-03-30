@@ -23,6 +23,15 @@ Blip already has:
 
 This extension should reuse these foundations rather than inventing parallel storage.
 
+## 3.1) Repo structure (Turborepo)
+
+Blip is a monorepo:
+
+- `apps/web`: the Blip web app (Vite + React) deployed to Vercel
+- `apps/extension`: the Chrome extension (Manifest V3) distributed via the Chrome Web Store
+- `packages/shared`: shared TypeScript utilities/types used by both
+- `supabase`: database migrations + Edge Functions used by both web + extension
+
 ## 4) Core extension features
 
 ### A) Context menu actions (right-click)
@@ -52,6 +61,7 @@ When the user highlights text on a page, register:
 ### C) Options page
 
 - **Auth**: login/logout (Supabase).
+  - The extension cannot directly reuse the web app session; it maintains its own Supabase session stored in extension storage.
 - **Extraction settings**:
   - “Selection required for Add/Compare” (default ON).
   - “Allow Firecrawl fallback” (default OFF).
@@ -128,13 +138,13 @@ Create:
 2) `public.resume_version_embeddings`
 - `resume_version_id` (uuid, pk/fk)
 - `model` (text)
-- `embedding` (vector)  (via pgvector)
+- `embedding` (vector(384)) (via pgvector + Supabase AI `gte-small`)
 - `updated_at`
 
 3) (Optional) `public.job_embeddings`
 - `job_id` (uuid, pk/fk)
 - `model` (text)
-- `embedding` (vector)
+- `embedding` (vector(384))
 - `updated_at`
 
 ### C) Vectorization pipeline
@@ -283,7 +293,7 @@ The following DDL changes are required (not yet in the schema):
    CREATE TABLE public.resume_version_embeddings (
      resume_version_id uuid PRIMARY KEY REFERENCES public.resume_versions(id) ON DELETE CASCADE,
      model text NOT NULL,
-     embedding vector(1536) NOT NULL,  -- adjust dims to match chosen model
+     embedding vector(384) NOT NULL,  -- Supabase AI gte-small
      updated_at timestamptz DEFAULT now() NOT NULL
    );
    ```
@@ -293,7 +303,7 @@ The following DDL changes are required (not yet in the schema):
    CREATE TABLE public.job_embeddings (
      job_id uuid PRIMARY KEY REFERENCES public.jobs(id) ON DELETE CASCADE,
      model text NOT NULL,
-     embedding vector(1536) NOT NULL,
+     embedding vector(384) NOT NULL,
      updated_at timestamptz DEFAULT now() NOT NULL
    );
    ```
@@ -307,7 +317,7 @@ The following DDL changes are required (not yet in the schema):
 6. **RPC for similarity search** (called by the edge function)
    ```sql
    CREATE OR REPLACE FUNCTION match_resumes(
-     query_embedding vector(1536),
+     query_embedding vector(384),
      match_user_id uuid,
      match_count int DEFAULT 5
    )
@@ -332,9 +342,12 @@ The following DDL changes are required (not yet in the schema):
 
 ## 11) Success criteria
 
-- **Firecrawl reduction**: majority of jobs can be added using selection-first without Firecrawl.
+- **Firecrawl reduction**: majority of jobs can be added via selection-first without Firecrawl.
 - **Latency**:
-  - “Add to Blip” completes quickly (local extraction + Supabase insert).
-  - “Compare with Blip” returns ranked resumes within ~3 seconds for typical resume counts.
+  - “Add to Blip” (extension) completes quickly — local DOM extraction + single Supabase insert.
+  - “Match Resume” (web app or extension) returns top-5 results within ~3 seconds.
+  - Resume processing (PDF text + embedding) completes asynchronously after upload.
 - **Quality**: correct resume family (e.g., Hardware vs TPM) ranks #1 for relevant JDs.
-- **Auth**: user session works across web app + extension (same Supabase auth user).
+- **Auth**:
+  - Web app and extension use the same Supabase project/user accounts.
+  - The extension session is separate (user logs in once inside the extension and it persists there).
