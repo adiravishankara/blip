@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blip</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef4fb;
+        --panel: rgba(255, 255, 255, 0.96);
+        --line: #d9e3f0;
+        --text: #132033;
+        --muted: #66758e;
+        --blue: #2457ea;
+        --blue-dark: #183fb0;
+        --emerald: #188052;
+        --rose: #b53131;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, #dbe8ff 0%, transparent 35%),
+          linear-gradient(180deg, #f7faff 0%, var(--bg) 100%);
+        color: var(--text);
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      .shell {
+        padding: 18px;
+      }
+
+      .hero {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: linear-gradient(135deg, rgba(36, 87, 234, 0.98), rgba(63, 122, 255, 0.92));
+        color: white;
+        box-shadow: 0 24px 48px rgba(36, 87, 234, 0.2);
+        margin-bottom: 14px;
+      }
+
+      .hero h1 {
+        margin: 0 0 8px;
+        font-size: 26px;
+      }
+
+      .hero p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 16px 32px rgba(19, 32, 51, 0.08);
+        margin-bottom: 12px;
+        backdrop-filter: blur(12px);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .pill.blue { background: #e8efff; color: var(--blue); }
+      .pill.green { background: #e8f6ef; color: var(--emerald); }
+      .pill.red { background: #fdeaea; color: var(--rose); }
+      .pill.gray { background: #eef2f8; color: var(--muted); }
+
+      h2, h3 {
+        margin: 0;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .field {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: white;
+      }
+
+      .field-label {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .field-value {
+        font-size: 14px;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+
+      .results {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .result {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+      }
+
+      .result-score {
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: var(--blue);
+        color: white;
+      }
+
+      .primary:hover { background: var(--blue-dark); }
+
+      .secondary {
+        background: #edf2fb;
+        color: var(--text);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .status {
+        min-height: 20px;
+        font-size: 13px;
+      }
+
+      .good { color: var(--emerald); }
+      .bad { color: var(--rose); }
+
+      .empty {
+        text-align: center;
+        padding: 32px 16px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      a.link {
+        color: var(--blue);
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="hero">
+        <h1>Blip</h1>
+        <p>Selection-first capture. Save the job, auto-run resume matching, and surface the best fits immediately.</p>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <div>
+            <h2>Account</h2>
+            <div id="account-copy" class="muted">Sign in once and Blip will process captures automatically.</div>
+          </div>
+          <span id="account-pill" class="pill gray">Signed out</span>
+        </div>
+        <div id="auth-form" class="stack" style="margin-top: 14px;">
+          <input id="email" type="email" placeholder="you@example.com" />
+          <input id="password" type="password" placeholder="Password" />
+          <button id="sign-in-btn" class="primary">Sign In</button>
+        </div>
+        <div id="account-actions" class="actions" hidden>
+          <button id="sign-out-btn" class="secondary">Sign Out</button>
+        </div>
+        <div id="auth-status" class="status"></div>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <div>
+            <h2>Current Capture</h2>
+            <div class="muted">Right-click on a highlighted job description to send a role into Blip.</div>
+          </div>
+          <span id="capture-pill" class="pill gray">Idle</span>
+        </div>
+        <div id="capture-body" class="stack" style="margin-top: 14px;"></div>
+      </section>
+    </div>
+
+    <script type="module" src="./sidepanel.ts"></script>
+  </body>
+</html>

@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createAuthedClient } from '../_shared/supabaseClient.ts';
 
 const session = new Supabase.ai.Session('gte-small');
+const MAX_EMBEDDING_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function normalizeText(input: string) {
   return input.replace(/\s+/g, ' ').trim();
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
 
     const { data: job, error: jobErr } = await supabase
       .from('jobs')
-      .select('id,user_id,job_description')
+      .select('id,user_id,job_description,updated_at,match_score_updated_at')
       .eq('id', job_id)
       .single();
 
@@ -95,13 +96,31 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Ensure job embedding exists (regenerate every time for v1 simplicity)
-    const jdEmbedding = await session.run(jdText, { mean_pool: true, normalize: true });
+    const { data: existingEmbedding } = await supabase
+      .from('job_embeddings')
+      .select('embedding,updated_at,model')
+      .eq('job_id', job.id)
+      .maybeSingle();
+
+    const now = new Date();
+    const jobUpdatedAt = job.updated_at ? new Date(job.updated_at).getTime() : 0;
+    const embeddingUpdatedAt = existingEmbedding?.updated_at ? new Date(existingEmbedding.updated_at).getTime() : 0;
+    const embeddingAgeMs = embeddingUpdatedAt ? now.getTime() - embeddingUpdatedAt : Number.POSITIVE_INFINITY;
+    const embeddingIsFresh =
+      Boolean(existingEmbedding?.embedding) &&
+      embeddingUpdatedAt >= jobUpdatedAt &&
+      embeddingAgeMs < MAX_EMBEDDING_AGE_MS;
+
+    let jdEmbedding = existingEmbedding?.embedding as number[] | undefined;
     const model = 'gte-small';
 
-    await supabase
-      .from('job_embeddings')
-      .upsert({ job_id: job.id, model, embedding: jdEmbedding, updated_at: new Date().toISOString() });
+    if (!embeddingIsFresh || !jdEmbedding) {
+      jdEmbedding = await session.run(jdText, { mean_pool: true, normalize: true });
+
+      await supabase
+        .from('job_embeddings')
+        .upsert({ job_id: job.id, model, embedding: jdEmbedding, updated_at: now.toISOString() });
+    }
 
     // Fetch similar resumes by embedding
     const { data: matches, error: matchErr } = await supabase.rpc('match_resumes', {
@@ -117,14 +136,35 @@ Deno.serve(async (req) => {
       });
     }
 
+    const [{ count: totalResumeCount }, { count: readyResumeCount }] = await Promise.all([
+      supabase
+        .from('resume_versions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      supabase
+        .from('resume_versions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('embedding_status', 'ready'),
+    ]);
+
     if (!matches || matches.length === 0) {
-      // No resumes uploaded / ready
       await supabase
         .from('jobs')
         .update({ match_score: null, match_score_updated_at: new Date().toISOString() })
         .eq('id', job.id);
 
-      return new Response(JSON.stringify({ results: [] }), {
+      const resumeState =
+        (totalResumeCount ?? 0) === 0 ? 'empty'
+        : (readyResumeCount ?? 0) === 0 ? 'processing'
+        : 'ready';
+
+      return new Response(JSON.stringify({
+        results: [],
+        resume_state: resumeState,
+        total_resume_versions: totalResumeCount ?? 0,
+        ready_resume_versions: readyResumeCount ?? 0,
+      }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -164,7 +204,12 @@ Deno.serve(async (req) => {
       .update({ match_score: bestScore, match_score_updated_at: new Date().toISOString() })
       .eq('id', job.id);
 
-    return new Response(JSON.stringify({ results }), {
+    return new Response(JSON.stringify({
+      results,
+      resume_state: 'ready',
+      total_resume_versions: totalResumeCount ?? results.length,
+      ready_resume_versions: readyResumeCount ?? results.length,
+    }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {

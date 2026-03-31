@@ -6,7 +6,8 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noEmit": true,
-    "types": ["chrome"]
+    "skipLibCheck": true,
+    "types": ["chrome", "vite/client", "node"]
   },
   "include": ["src"]
 }

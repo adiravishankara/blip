@@ -3,8 +3,12 @@ import { UserProfile, ResumeLink, WorkModePreference } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
-import { extractPdfText } from '../services/pdfText';
-import { embedText } from '../services/embeddings';
+import {
+  fetchResumeVersion,
+  processResumeVersion,
+  type ResumeVersionSummary,
+  waitForResumeProcessing,
+} from '../services/resumeProcessing';
 import { CityAutocomplete } from './CityAutocomplete';
 import {
   X, Plus, Trash2, Save, User, MapPin, DollarSign, Briefcase,
@@ -106,7 +110,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
   const [saving, setSaving] = useState(false);
   const [newResume, setNewResume] = useState<ResumeLink>({ label: '', url: '' });
   const [saved, setSaved] = useState(false);
-  const [resumeVersions, setResumeVersions] = useState<any[]>([]);
+  const [resumeVersions, setResumeVersions] = useState<ResumeVersionSummary[]>([]);
   const [resumeVersionLabel, setResumeVersionLabel] = useState('Primary');
   const [uploadingResume, setUploadingResume] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -191,8 +195,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
         user_id: user.id,
         label,
         storage_path: storagePath,
-        embedding_status: 'processing',
-        embedding_model: 'gte-small',
+        embedding_status: 'pending',
       });
       if (insertErr) throw insertErr;
 
@@ -202,27 +205,17 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
       });
       if (uploadErr) throw uploadErr;
 
-      const extractedText = await extractPdfText(file);
-      const { embedding, model } = await embedText(extractedText.slice(0, 20_000));
-
-      const { error: embErr } = await supabase.from('resume_version_embeddings').upsert({
-        resume_version_id: id,
-        model,
-        embedding,
-        updated_at: new Date().toISOString(),
+      await loadResumeVersions();
+      await processResumeVersion(id);
+      await waitForResumeProcessing(id, {
+        onTick: async () => {
+          await loadResumeVersions();
+        },
       });
-      if (embErr) throw embErr;
-
-      const { error: updateErr } = await supabase
-        .from('resume_versions')
-        .update({
-          extracted_text: extractedText,
-          embedding_status: 'ready',
-          embedding_model: model,
-        })
-        .eq('id', id);
-      if (updateErr) throw updateErr;
-
+      const latest = await fetchResumeVersion(id);
+      if (latest?.embedding_status === 'error') {
+        throw new Error('Resume processing failed. Please try another PDF.');
+      }
       await loadResumeVersions();
     } catch (err: any) {
       setUploadError(err?.message ?? 'Failed to upload resume.');

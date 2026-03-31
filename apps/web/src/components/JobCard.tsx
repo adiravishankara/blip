@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Job } from '../types';
 import { Calendar, Flag, ExternalLink, Copy, Check, Bolt, Loader2 } from 'lucide-react';
 import { buildJobHealth, isSuggestedFollowUpDue } from '../utils/jobHealth';
-import { matchResumeForJob } from '../services/matchResume';
+import { matchResumeForJob } from '../services/match';
+import { MatchScoreBadge } from './MatchScoreBadge';
 
 interface JobCardProps {
   job: Job;
@@ -55,6 +56,18 @@ export function JobCard({ job, onClick, selectionMode, isSelected, allJobs = [] 
   const followUpDue = isSuggestedFollowUpDue(job);
   const [copied, setCopied] = useState(false);
   const [matching, setMatching] = useState(false);
+  const [localMatchScore, setLocalMatchScore] = useState<number | null>(job.match_score ?? null);
+  const [localMatchUpdatedAt, setLocalMatchUpdatedAt] = useState<string | null>(job.match_score_updated_at ?? null);
+
+  useEffect(() => {
+    setLocalMatchScore(job.match_score ?? null);
+    setLocalMatchUpdatedAt(job.match_score_updated_at ?? null);
+  }, [job.match_score, job.match_score_updated_at]);
+
+  const isMatchScoreStale = useMemo(() => {
+    if (!localMatchUpdatedAt) return false;
+    return Date.now() - new Date(localMatchUpdatedAt).getTime() > 7 * 24 * 60 * 60 * 1000;
+  }, [localMatchUpdatedAt]);
 
   const handleCopyPrompt = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -75,7 +88,9 @@ Resume:
     if (matching) return;
     setMatching(true);
     try {
-      await matchResumeForJob(job.id);
+      const response = await matchResumeForJob(job.id);
+      setLocalMatchScore(response.results[0]?.score ?? null);
+      setLocalMatchUpdatedAt(new Date().toISOString());
     } catch (err: any) {
       alert(err?.message ?? 'Failed to match resume.');
     } finally {
@@ -147,6 +162,7 @@ Resume:
         <div className="flex items-center justify-between mt-1 pt-2 border-t border-gray-100/50">
           <div className="flex items-center gap-2">
             <div>{PRIORITY_ICON[job.priority]}</div>
+            <MatchScoreBadge score={localMatchScore} size="xs" stale={isMatchScoreStale} />
           </div>
 
           <div className="flex items-center gap-2">

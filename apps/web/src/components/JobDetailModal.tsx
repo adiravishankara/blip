@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Job, JobStatus, JobComment, JobPriority, WorkMode, JobStatusHistoryEntry } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
-import { matchResumeForJob, type MatchResumeResult } from '../services/matchResume';
+import { matchResumeForJob, type MatchResumeResult, type MatchResumeResponse } from '../services/match';
 import { JobHealthPanel } from './JobHealthPanel';
+import { MatchScoreBadge } from './MatchScoreBadge';
 import {
   X, ExternalLink, Send,
   FileText, MoreVertical, Trash2, Copy, Check,
@@ -247,6 +248,8 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResumeResult[] | null>(null);
   const [matchError, setMatchError] = useState<string | null>(null);
+  const [matchMeta, setMatchMeta] = useState<Pick<MatchResumeResponse, 'resume_state' | 'total_resume_versions' | 'ready_resume_versions'> | null>(null);
+  const [latestResumeUpdatedAt, setLatestResumeUpdatedAt] = useState<string | null>(null);
 
   const handleCopyDescPrompt = () => {
     const prompt = `Read the docs, and edit the resume for the following role.\nRole:\n${localJob.job_title} - ${localJob.company}\n${localJob.job_description ?? ''}\n\nResume:\n`;
@@ -259,8 +262,18 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
     setMatchError(null);
     setMatchLoading(true);
     try {
-      const results = await matchResumeForJob(localJob.id);
-      setMatchResults(results);
+      const response = await matchResumeForJob(localJob.id);
+      setMatchResults(response.results);
+      setMatchMeta({
+        resume_state: response.resume_state,
+        total_resume_versions: response.total_resume_versions,
+        ready_resume_versions: response.ready_resume_versions,
+      });
+      setLocalJob(prev => ({
+        ...prev,
+        match_score: response.results[0]?.score ?? null,
+        match_score_updated_at: new Date().toISOString(),
+      }));
       onUpdate();
     } catch (err: any) {
       setMatchError(err?.message ?? 'Failed to match resume.');
@@ -277,7 +290,35 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
   useEffect(() => {
     loadComments();
     loadStatusHistory();
+    loadLatestResumeVersion();
   }, [job.id]);
+
+  const loadLatestResumeVersion = async () => {
+    try {
+      const { data } = await supabase
+        .from('resume_versions')
+        .select('updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setLatestResumeUpdatedAt(data?.updated_at ?? null);
+    } catch {
+      setLatestResumeUpdatedAt(null);
+    }
+  };
+
+  const isMatchScoreStale = useMemo(() => {
+    if (localJob.match_score == null || !localJob.match_score_updated_at) return false;
+
+    const matchUpdatedAt = new Date(localJob.match_score_updated_at).getTime();
+    const isOlderThanWeek = Date.now() - matchUpdatedAt > 7 * 24 * 60 * 60 * 1000;
+    const hasNewerResume = latestResumeUpdatedAt
+      ? new Date(latestResumeUpdatedAt).getTime() > matchUpdatedAt
+      : false;
+
+    return isOlderThanWeek || hasNewerResume;
+  }, [latestResumeUpdatedAt, localJob.match_score, localJob.match_score_updated_at]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -528,6 +569,7 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
             </div>
 
             <div className="flex items-center gap-2 mb-8">
+              <MatchScoreBadge score={localJob.match_score} size="sm" stale={isMatchScoreStale} />
               <button
                 onClick={runMatch}
                 disabled={matchLoading}
@@ -553,7 +595,10 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                     Top matches
                   </div>
                   {matchResults && (
-                    <div className="text-xs text-slate-500 font-medium">{matchResults.length} shown</div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {matchResults.length} shown
+                      {isMatchScoreStale ? ' • stale' : ''}
+                    </div>
                   )}
                 </div>
 
@@ -563,7 +608,19 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                   </div>
                 )}
 
-                {matchResults && matchResults.length === 0 && (
+                {matchResults && matchResults.length === 0 && matchMeta?.resume_state === 'empty' && (
+                  <div className="text-sm text-slate-600">
+                    You do not have any resume versions yet. Upload a PDF resume in your profile to enable matching.
+                  </div>
+                )}
+
+                {matchResults && matchResults.length === 0 && matchMeta?.resume_state === 'processing' && (
+                  <div className="text-sm text-slate-600">
+                    Your resume uploads are still processing. Try matching again once at least one resume reaches the ready state.
+                  </div>
+                )}
+
+                {matchResults && matchResults.length === 0 && (!matchMeta || matchMeta.resume_state === 'ready') && (
                   <div className="text-sm text-slate-600">
                     No resume versions are ready yet. Upload a PDF resume in your profile.
                   </div>
