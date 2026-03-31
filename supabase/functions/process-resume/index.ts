@@ -4,6 +4,12 @@ import { createAuthedClient } from '../_shared/supabaseClient.ts';
 
 const session = new Supabase.ai.Session('gte-small');
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
+
 function normalizeText(input: string) {
   return input.replace(/\s+/g, ' ').trim();
 }
@@ -32,7 +38,13 @@ async function extractPdfText(bytes: Uint8Array, maxChars = 120_000) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+  }
 
   const supabase = createAuthedClient(req);
   let resumeVersionId: string | null = null;
@@ -44,7 +56,10 @@ Deno.serve(async (req) => {
     if (!resumeVersionId) {
       return new Response(JSON.stringify({ error: 'Missing resume_version_id' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
       });
     }
 
@@ -52,7 +67,10 @@ Deno.serve(async (req) => {
     if (authErr || !auth?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
       });
     }
 
@@ -67,14 +85,20 @@ Deno.serve(async (req) => {
     if (resumeErr || !resumeVersion) {
       return new Response(JSON.stringify({ error: 'Resume version not found' }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
       });
     }
 
     if (resumeVersion.user_id !== userId) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
       });
     }
 
@@ -128,7 +152,10 @@ Deno.serve(async (req) => {
     if (updateErr) throw updateErr;
 
     return new Response(JSON.stringify({ ok: true, status: 'ready' }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -149,7 +176,10 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: message, status: 'error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+      },
     });
   }
 });
