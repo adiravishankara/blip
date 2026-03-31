@@ -26,7 +26,6 @@ async function openPanel(tabId: number) {
     path: 'src/sidepanel.html',
     enabled: true,
   });
-  await chrome.sidePanel.open({ tabId });
 }
 
 async function captureFromTab(tabId: number, selectionText: string, action: CaptureAction) {
@@ -80,6 +79,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (!action) return;
 
+  try {
+    await openPanel(tab.id);
+  } catch {
+    // The side panel can still be opened manually from the extension action button.
+  }
+
   if (!isSupportedCaptureUrl(tab.url)) {
     await setPendingCapture({
       status: 'error',
@@ -98,7 +103,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       },
       error: 'Blip only works on standard http/https pages.',
     });
-    await openPanel(tab.id);
     return;
   }
 
@@ -123,7 +127,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       },
       error: 'Highlight the job description before using Blip on this page.',
     });
-    await openPanel(tab.id);
     return;
   }
 
@@ -142,7 +145,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     };
 
     await setPendingCapture(pendingState);
-    await openPanel(tab.id);
   } catch (error) {
     await setPendingCapture({
       status: 'error',
@@ -161,6 +163,5 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       },
       error: error instanceof Error ? error.message : 'Failed to capture this page.',
     });
-    await openPanel(tab.id);
   }
 });

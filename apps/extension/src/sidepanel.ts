@@ -1,43 +1,32 @@
-import { getPendingCapture, setPendingCapture } from './lib/storage';
-import { createJobFromCapture, getBlipWebUrl, matchResumeForJob, supabase } from './lib/supabase';
-import type { MatchResponse, PendingCaptureState } from './types';
+import { getPendingCapture } from './lib/storage';
+import { STORAGE_KEYS } from './lib/constants';
+import { supabase, getBlipWebUrl, createJobFromCapture, matchResumeForJob } from './lib/supabase';
+import type { MatchResult, PendingCaptureState } from './types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-const authForm = document.querySelector<HTMLDivElement>('#auth-form')!;
-const signedInPanel = document.querySelector<HTMLDivElement>('#signed-in-panel')!;
-const accountActions = document.querySelector<HTMLDivElement>('#account-actions')!;
-const signInButton = document.querySelector<HTMLButtonElement>('#sign-in-btn')!;
-const signOutButton = document.querySelector<HTMLButtonElement>('#sign-out-btn')!;
-const openProfileButton = document.querySelector<HTMLButtonElement>('#open-profile-btn')!;
-const openAppButton = document.querySelector<HTMLButtonElement>('#open-app-btn')!;
-const openSettingsButton = document.querySelector<HTMLButtonElement>('#open-settings-btn')!;
-const emailInput = document.querySelector<HTMLInputElement>('#email')!;
-const passwordInput = document.querySelector<HTMLInputElement>('#password')!;
-const authStatus = document.querySelector<HTMLDivElement>('#auth-status')!;
-const accountCopy = document.querySelector<HTMLDivElement>('#account-copy')!;
-const accountPill = document.querySelector<HTMLSpanElement>('#account-pill')!;
-const accountAvatar = document.querySelector<HTMLDivElement>('#account-avatar')!;
-const accountEmailFull = document.querySelector<HTMLDivElement>('#account-email-full')!;
-const supabaseConnection = document.querySelector<HTMLDivElement>('#supabase-connection')!;
-const supabaseConnectionDetail = document.querySelector<HTMLDivElement>('#supabase-connection-detail')!;
-const capturePill = document.querySelector<HTMLSpanElement>('#capture-pill')!;
-const captureBody = document.querySelector<HTMLDivElement>('#capture-body')!;
+type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated';
 
-let processingCaptureId: string | null = null;
-
-function setStatus(element: HTMLElement, message: string, kind: 'good' | 'bad' | 'neutral' = 'neutral') {
-  element.textContent = message;
-  element.className = kind === 'neutral' ? 'status' : `status ${kind}`;
+interface AppState {
+  authStatus: AuthStatus;
+  userEmail: string | null;
+  capture: PendingCaptureState | null;
+  isCreatingJob: boolean;
+  isMatching: boolean;
 }
 
-function pill(element: HTMLElement, label: string, tone: 'gray' | 'blue' | 'green' | 'red') {
-  element.textContent = label;
-  element.className = `pill ${tone}`;
-}
+const appRoot = document.querySelector<HTMLDivElement>('#app-root')!;
+const profileTrigger = document.querySelector<HTMLButtonElement>('#profile-trigger')!;
+const profileMenu = document.querySelector<HTMLDivElement>('#profile-menu')!;
+const profileOpenWeb = document.querySelector<HTMLButtonElement>('#profile-open-web')!;
+const profileOpenSettings = document.querySelector<HTMLButtonElement>('#profile-open-settings')!;
+const profileLogout = document.querySelector<HTMLButtonElement>('#profile-logout')!;
 
-function toggleVisibility(element: HTMLElement, visible: boolean) {
-  element.dataset.hidden = visible ? 'false' : 'true';
-}
+const state: AppState = {
+  authStatus: 'loading',
+  userEmail: null,
+  capture: null,
+  isCreatingJob: false,
+  isMatching: false,
+};
 
 function escapeHtml(value: string) {
   return value
@@ -48,235 +37,417 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#39;');
 }
 
-function inferSupabaseKind(url: string) {
-  return /localhost|127\.0\.0\.1/i.test(url) ? 'Local Supabase' : 'Cloud Supabase';
+function setState(partial: Partial<AppState>) {
+  Object.assign(state, partial);
+  renderApp();
 }
 
-async function checkSupabaseConnection() {
-  try {
-    const { error } = await supabase.from('jobs').select('id').limit(1);
+function statusPill(status: PendingCaptureState['status']) {
+  if (status === 'pending') return '<span class="pill blue">Queued</span>';
+  if (status === 'processing') return '<span class="pill blue">Processing</span>';
+  if (status === 'ready') return '<span class="pill green">Ready</span>';
+  if (status === 'error') return '<span class="pill red">Error</span>';
+  return '<span class="pill gray">Idle</span>';
+}
 
-    if (error && !String(error.message).toLowerCase().includes('permission')) {
-      supabaseConnection.textContent = 'Connection error';
-      supabaseConnection.style.color = 'var(--rose)';
-      supabaseConnectionDetail.textContent = `${inferSupabaseKind(supabaseUrl)} • ${error.message}`;
+function renderAuthScreen() {
+  const webUrl = getBlipWebUrl();
+  appRoot.innerHTML = `
+    <section class="card">
+      <h2 style="margin-bottom: 6px;">Sign in to Blip</h2>
+      <div class="muted" style="margin-bottom: 14px;">
+        Use your Blip account to save roles and find matching resumes directly from this page.
+      </div>
+      <div class="stack">
+        <label class="small">
+          Email
+          <input id="auth-email" type="email" placeholder="you@example.com" />
+        </label>
+        <label class="small">
+          Password
+          <input id="auth-password" type="password" placeholder="Password" />
+        </label>
+        <button id="auth-sign-in" class="primary" type="button">Sign in</button>
+        <button id="open-web-auth" class="secondary" type="button">Open Blip in browser</button>
+        <button id="refresh-auth" class="secondary" type="button">I have already signed in</button>
+        <div id="auth-refresh-status" class="small"></div>
+        <div class="small">
+          This extension uses the same account as the Blip web app. You can sign in here or from the browser.
+        </div>
+      </div>
+    </section>
+  `;
+
+  const emailInput = document.querySelector<HTMLInputElement>('#auth-email');
+  const passwordInput = document.querySelector<HTMLInputElement>('#auth-password');
+  const signInButton = document.querySelector<HTMLButtonElement>('#auth-sign-in');
+  const openWebAuth = document.querySelector<HTMLButtonElement>('#open-web-auth');
+  const refreshAuth = document.querySelector<HTMLButtonElement>('#refresh-auth');
+  const refreshStatus = document.querySelector<HTMLDivElement>('#auth-refresh-status');
+
+  signInButton?.addEventListener('click', async () => {
+    if (!emailInput || !passwordInput || !refreshStatus) return;
+    refreshStatus.textContent = '';
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) {
+      refreshStatus.textContent = 'Enter your email and password.';
       return;
     }
+    refreshStatus.textContent = 'Signing in…';
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      refreshStatus.textContent = error.message;
+      return;
+    }
+    passwordInput.value = '';
+    refreshStatus.textContent = 'Signed in. Loading account…';
+    await hydrateAuth();
+  });
 
-    supabaseConnection.textContent = 'Connected';
-    supabaseConnection.style.color = 'var(--emerald)';
-    supabaseConnectionDetail.textContent = `${inferSupabaseKind(supabaseUrl)} • ${supabaseUrl}`;
-  } catch (error) {
-    supabaseConnection.textContent = 'Connection error';
-    supabaseConnection.style.color = 'var(--rose)';
-    supabaseConnectionDetail.textContent = `${inferSupabaseKind(supabaseUrl)} • ${error instanceof Error ? error.message : 'Connection failed'}`;
-  }
+  openWebAuth?.addEventListener('click', () => {
+    chrome.tabs.create({ url: webUrl });
+  });
+
+  refreshAuth?.addEventListener('click', () => {
+    void (async () => {
+      if (refreshStatus) refreshStatus.textContent = 'Checking your Blip account...';
+      const authenticated = await hydrateAuth();
+      if (!authenticated && refreshStatus) {
+        refreshStatus.textContent = 'Still not signed in. Make sure you have signed in from the Blip extension options or this panel.';
+      }
+    })();
+  });
 }
 
-function renderCapture(state: PendingCaptureState | null) {
-  if (!state) {
-    pill(capturePill, 'Idle', 'gray');
-    captureBody.innerHTML = `
-      <div class="empty">
-        <div style="font-weight: 800; margin-bottom: 8px;">Nothing pending yet</div>
-        <div class="muted">Highlight a job description on any supported page, right-click, and choose Blip from the context menu.</div>
-      </div>
-    `;
-    return;
-  }
-
-  if (state.status === 'pending') pill(capturePill, 'Queued', 'blue');
-  if (state.status === 'processing') pill(capturePill, 'Processing', 'blue');
-  if (state.status === 'ready') pill(capturePill, 'Ready', 'green');
-  if (state.status === 'error') pill(capturePill, 'Error', 'red');
-
-  const { capture } = state;
-  const selectionPreview = capture.selectionText || 'No highlighted text was captured.';
-  const resultsMarkup = state.matchResults?.length
-    ? `
-      <div class="card" style="padding: 0; border: 0; box-shadow: none; margin-bottom: 0;">
-        <h3 style="margin-bottom: 10px;">Top Resume Matches</h3>
-        <div class="results">
-          ${state.matchResults.slice(0, 5).map((result) => `
-            <div class="result">
-              <div class="row">
-                <div style="font-weight: 800;">${escapeHtml(result.label)}</div>
-                <div class="result-score">${Math.round(result.score)}%</div>
-              </div>
-              <div class="muted" style="margin-top: 6px;">
-                Missing keywords: ${escapeHtml(result.missing_keywords.slice(0, 8).join(', ') || 'None')}
-              </div>
+function renderMatches(results: MatchResult[] | undefined) {
+  if (!results?.length) return '';
+  return `
+    <div class="card" style="padding: 0; border: 0; box-shadow: none; margin-bottom: 0;">
+      <h3 style="margin-bottom: 10px;">Top Resume Matches</h3>
+      <div class="results">
+        ${results.slice(0, 5).map((result) => `
+          <div class="result">
+            <div class="row">
+              <div style="font-weight: 800;">${escapeHtml(result.label)}</div>
+              <div class="result-score">${Math.round(result.score)}%</div>
             </div>
-          `).join('')}
-        </div>
+            <div class="muted" style="margin-top: 6px;">
+              Missing keywords: ${escapeHtml(result.missing_keywords.slice(0, 8).join(', ') || 'None')}
+            </div>
+          </div>
+        `).join('')}
       </div>
-    `
-    : state.status === 'ready'
-      ? `
-        <div class="field">
-          <div class="field-label">Resume State</div>
-          <div class="field-value">
-            ${
-              state.resumeState === 'empty'
-                ? 'No resume versions are uploaded yet.'
-                : state.resumeState === 'processing'
-                  ? 'Your resume uploads are still processing.'
-                  : 'No ranked resumes were returned.'
-            }
+    </div>
+  `;
+}
+
+function renderCaptureSection() {
+  const captureState = state.capture;
+  if (!captureState) {
+    return `
+      <section class="card">
+        <div class="row" style="margin-bottom: 12px;">
+          <div>
+            <h2>Role from this page</h2>
+            <div class="muted">Highlight a job description and use “Add to Blip” to fill these fields.</div>
+          </div>
+          <span class="pill gray">Idle</span>
+        </div>
+        <div class="meta">
+          <div class="field">
+            <div class="field-label">Role</div>
+            <div class="field-value muted">Waiting for capture…</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Company</div>
+            <div class="field-value muted">Waiting for capture…</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Location</div>
+            <div class="field-value muted">Waiting for capture…</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Role URL</div>
+            <div class="field-value muted">Waiting for capture…</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Selected Description</div>
+            <div class="field-value muted">Waiting for capture…</div>
           </div>
         </div>
-      `
-      : '';
+      </section>
+    `;
+  }
 
-  const actionsMarkup = state.jobId
+  const { capture, status, error, matchResults, resumeState } = captureState;
+  const selectionPreview = capture.selectionText || 'No highlighted text was captured.';
+
+  const resumeStateMarkup = status === 'ready' && !matchResults?.length
     ? `
-      <div class="actions">
-        <button id="open-blip-btn" class="primary">Open Blip</button>
-        <a class="link" href="${escapeHtml(capture.pageUrl)}" target="_blank" rel="noreferrer">Open source page</a>
+      <div class="field">
+        <div class="field-label">Resume State</div>
+        <div class="field-value">
+          ${
+            resumeState === 'empty'
+              ? 'No resume versions are uploaded yet.'
+              : resumeState === 'processing'
+                ? 'Your resume uploads are still processing.'
+                : 'No ranked resumes were returned.'
+          }
+        </div>
       </div>
     `
     : '';
 
-  captureBody.innerHTML = `
-    ${state.error ? `<div class="field" style="border-color: #f0c6c6; background: #fff7f7;"><div class="field-value" style="color: var(--rose);">${escapeHtml(state.error)}</div></div>` : ''}
-    <div class="meta">
-      <div class="field">
-        <div class="field-label">Action</div>
-        <div class="field-value">${capture.action === 'compare' ? 'Compare with Blip' : 'Add to Blip'}</div>
+  const errorMarkup = error
+    ? `<div class="field" style="border-color: #f0c6c6; background: #fff7f7;"><div class="field-value" style="color: var(--rose);">${escapeHtml(error)}</div></div>`
+    : '';
+
+  const actionsMarkup = capture.action === 'add'
+    ? `
+      <div class="actions">
+        <button id="create-job-btn" class="primary" type="button" ${state.isCreatingJob ? 'disabled' : ''}>
+          ${state.isCreatingJob ? 'Saving…' : 'Save role to Blip'}
+        </button>
+        ${captureState.jobId ? `
+          <button id="match-resume-btn" class="secondary" type="button" ${state.isMatching ? 'disabled' : ''}>
+            ${state.isMatching ? 'Matching…' : 'Find matching resumes'}
+          </button>
+        ` : ''}
+        <button id="clear-capture-btn" class="secondary" type="button">
+          Clear role
+        </button>
       </div>
-      <div class="field">
-        <div class="field-label">Role</div>
-        <div class="field-value">${escapeHtml(capture.jobTitle || 'Untitled Role')}</div>
+    `
+    : '';
+
+  return `
+    <section class="card">
+      <div class="row" style="margin-bottom: 12px;">
+        <div>
+          <h2>Current Capture</h2>
+          <div class="muted">Right-click on a highlighted job description to send a role into Blip.</div>
+        </div>
+        ${statusPill(status)}
       </div>
-      <div class="field">
-        <div class="field-label">Company</div>
-        <div class="field-value">${escapeHtml(capture.company || 'Unknown company')}</div>
+      ${errorMarkup}
+      <div class="meta">
+        <div class="field">
+          <div class="field-label">Action</div>
+          <div class="field-value">${capture.action === 'compare' ? 'Compare with Blip' : 'Add to Blip'}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Role</div>
+          <div class="field-value">${escapeHtml(capture.jobTitle || 'Untitled Role')}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Company</div>
+          <div class="field-value">${escapeHtml(capture.company || 'Unknown company')}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Location</div>
+          <div class="field-value">${escapeHtml(capture.location || 'Unknown')}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Role URL</div>
+          <div class="field-value">${escapeHtml(capture.roleUrl)}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Selected Description</div>
+          <div class="field-value">${escapeHtml(selectionPreview.slice(0, 1400))}</div>
+        </div>
+        ${resumeStateMarkup}
       </div>
-      <div class="field">
-        <div class="field-label">Location</div>
-        <div class="field-value">${escapeHtml(capture.location || 'Unknown')}</div>
+      ${actionsMarkup}
+      ${renderMatches(matchResults)}
+    </section>
+  `;
+}
+
+function renderMainScreen() {
+  const captureSection = renderCaptureSection();
+
+  appRoot.innerHTML = `
+    <section class="card" style="margin-bottom: 12px;">
+      <div class="row">
+        <div>
+          <h2>Roles in Blip</h2>
+          <div class="muted">Save roles from the web and see how your resumes stack up.</div>
+        </div>
       </div>
-      <div class="field">
-        <div class="field-label">Role URL</div>
-        <div class="field-value">${escapeHtml(capture.roleUrl)}</div>
-      </div>
-      <div class="field">
-        <div class="field-label">Selected Description</div>
-        <div class="field-value">${escapeHtml(selectionPreview.slice(0, 1400))}</div>
-      </div>
-    </div>
-    ${resultsMarkup}
-    ${actionsMarkup}
+    </section>
+    ${captureSection}
   `;
 
-  const openBlipButton = document.querySelector<HTMLButtonElement>('#open-blip-btn');
-  if (openBlipButton) {
-    openBlipButton.addEventListener('click', () => {
-      chrome.tabs.create({ url: getBlipWebUrl() });
-    });
-  }
+  const createJobBtn = document.querySelector<HTMLButtonElement>('#create-job-btn');
+  const matchResumeBtn = document.querySelector<HTMLButtonElement>('#match-resume-btn');
+  const clearCaptureBtn = document.querySelector<HTMLButtonElement>('#clear-capture-btn');
+
+  createJobBtn?.addEventListener('click', () => {
+    void handleCreateJobFromCapture();
+  });
+
+  matchResumeBtn?.addEventListener('click', () => {
+    void handleMatchResume();
+  });
+
+  clearCaptureBtn?.addEventListener('click', () => {
+    void handleClearCapture();
+  });
 }
 
-async function refreshAccount() {
+function renderApp() {
+  if (state.authStatus === 'loading') {
+    appRoot.innerHTML = `
+      <section class="card">
+        <div class="small">Checking your Blip account…</div>
+      </section>
+    `;
+    return;
+  }
+
+  if (state.authStatus === 'unauthenticated') {
+    renderAuthScreen();
+    return;
+  }
+
+  renderMainScreen();
+}
+
+async function hydrateAuth() {
   const {
     data: { session },
+    error,
   } = await supabase.auth.getSession();
 
-  const user = session?.user ?? null;
-  toggleVisibility(authForm, !user);
-  toggleVisibility(signedInPanel, Boolean(user));
-  accountCopy.textContent = user?.email ?? 'Sign in once and Blip will process captures automatically.';
-  pill(accountPill, user ? 'Signed in' : 'Signed out', user ? 'green' : 'gray');
-  accountAvatar.textContent = (user?.email?.[0] ?? 'B').toUpperCase();
-  accountEmailFull.textContent = user?.email ?? '';
-  await checkSupabaseConnection();
-  return user;
+  if (error || !session?.user) {
+    setState({ authStatus: 'unauthenticated', userEmail: null });
+    return false;
+  }
+
+  setState({ authStatus: 'authenticated', userEmail: session.user.email ?? null });
+  return true;
 }
 
-async function processPendingCapture() {
-  const user = await refreshAccount();
-  const state = await getPendingCapture();
-  renderCapture(state);
+async function hydrateCapture() {
+  const pending = await getPendingCapture();
+  setState({ capture: pending });
+}
 
-  if (!state || state.status !== 'pending') return;
-  if (!user) return;
-  if (processingCaptureId === state.capture.id) return;
-
-  processingCaptureId = state.capture.id;
-  await setPendingCapture({ ...state, status: 'processing', error: undefined });
-  renderCapture(await getPendingCapture());
+async function handleCreateJobFromCapture() {
+  const captureState = state.capture;
+  if (!captureState) return;
 
   try {
-    const createdJob = await createJobFromCapture(state.capture);
-    const match = await matchResumeForJob(createdJob.id);
-
-    await setPendingCapture({
-      status: 'ready',
-      capture: state.capture,
-      jobId: createdJob.id,
-      matchResults: match.results,
-      resumeState: match.resume_state,
+    setState({ isCreatingJob: true });
+    const job = await createJobFromCapture(captureState.capture);
+    setState({
+      capture: {
+        ...captureState,
+        status: 'processing',
+        jobId: job.id,
+        error: undefined,
+      },
+      isCreatingJob: false,
     });
   } catch (error) {
-    await setPendingCapture({
-      ...state,
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Failed to save this capture to Blip.',
+    const message = error instanceof Error ? error.message : 'Could not save this role.';
+    setState({
+      capture: {
+        ...captureState,
+        status: 'error',
+        error: message,
+      },
+      isCreatingJob: false,
     });
-  } finally {
-    processingCaptureId = null;
-    renderCapture(await getPendingCapture());
   }
 }
 
-signInButton.addEventListener('click', async () => {
-  setStatus(authStatus, '');
+async function handleMatchResume() {
+  const captureState = state.capture;
+  if (!captureState?.jobId) return;
+
   try {
-    const { error } = await supabase.auth.signInWithPassword({
-      email: emailInput.value.trim(),
-      password: passwordInput.value,
+    setState({ isMatching: true });
+    const matchResponse = await matchResumeForJob(captureState.jobId);
+    setState({
+      capture: {
+        ...captureState,
+        status: 'ready',
+        matchResults: matchResponse.results,
+        resumeState: matchResponse.resume_state,
+        error: undefined,
+      },
+      isMatching: false,
     });
-    if (error) throw error;
-
-    passwordInput.value = '';
-    setStatus(authStatus, 'Signed in. Processing the current capture now.', 'good');
-    await processPendingCapture();
   } catch (error) {
-    setStatus(authStatus, error instanceof Error ? error.message : 'Could not sign in.', 'bad');
+    const message = error instanceof Error ? error.message : 'Could not match resumes for this role.';
+    setState({
+      capture: {
+        ...captureState,
+        status: 'error',
+        error: message,
+      },
+      isMatching: false,
+    });
   }
-});
+}
 
-signOutButton.addEventListener('click', async () => {
-  setStatus(authStatus, '');
+async function handleClearCapture() {
   try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    await refreshAccount();
-    setStatus(authStatus, 'Signed out.', 'good');
-  } catch (error) {
-    setStatus(authStatus, error instanceof Error ? error.message : 'Could not sign out.', 'bad');
+    await chrome.storage.local.remove(STORAGE_KEYS.pendingCapture);
+  } catch {
+    // If storage removal fails, still clear local state so UI resets.
   }
-});
-
-openAppButton.addEventListener('click', () => {
-  chrome.tabs.create({ url: getBlipWebUrl() });
-});
-
-openProfileButton.addEventListener('click', () => {
-  chrome.tabs.create({ url: `${getBlipWebUrl()}?profile=1` });
-});
-
-openSettingsButton.addEventListener('click', () => {
-  chrome.runtime.openOptionsPage();
-});
+  setState({
+    capture: null,
+    isCreatingJob: false,
+    isMatching: false,
+  });
+}
 
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName !== 'local' || !changes['blip.pendingCapture']) return;
-  await processPendingCapture();
+  await hydrateCapture();
 });
 
-supabase.auth.onAuthStateChange(() => {
-  void processPendingCapture();
+profileTrigger.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const isHidden = profileMenu.classList.contains('hidden');
+  if (isHidden) {
+    profileMenu.classList.remove('hidden');
+  } else {
+    profileMenu.classList.add('hidden');
+  }
 });
 
-void processPendingCapture();
+document.addEventListener('click', (event) => {
+  if (!profileMenu.contains(event.target as Node) && event.target !== profileTrigger) {
+    profileMenu.classList.add('hidden');
+  }
+});
+
+profileOpenWeb.addEventListener('click', () => {
+  chrome.tabs.create({ url: getBlipWebUrl() });
+  profileMenu.classList.add('hidden');
+});
+
+profileOpenSettings.addEventListener('click', () => {
+  if (chrome.runtime.openOptionsPage) {
+    chrome.runtime.openOptionsPage();
+  }
+  profileMenu.classList.add('hidden');
+});
+
+profileLogout.addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  setState({ authStatus: 'unauthenticated', userEmail: null, capture: null });
+  profileMenu.classList.add('hidden');
+});
+
+void (async function init() {
+  renderApp();
+  await hydrateAuth();
+  await hydrateCapture();
+})();
