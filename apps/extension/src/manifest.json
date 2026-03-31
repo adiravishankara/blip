@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Blip",
+  "version": "0.1.0",
+  "description": "Capture job descriptions into Blip and automatically surface matching resumes.",
+  "action": {
+    "default_title": "Blip"
+  },
+  "permissions": ["contextMenus", "storage", "activeTab", "scripting", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "src/sidepanel.html"
+  },
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  }
+}

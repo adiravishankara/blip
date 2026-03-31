@@ -13,6 +13,7 @@ export interface Job {
   status: JobStatus;
   priority: JobPriority;
   job_url?: string | null;
+  role_url?: string | null;
   job_title: string;
   company: string;
   location?: string | null;
@@ -36,6 +37,8 @@ export interface Job {
   interview_date?: string | null;
   offer_amount?: number | null;
   match_score?: number | null;
+  match_score_updated_at?: string | null;
+  raw_capture?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

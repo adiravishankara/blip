@@ -467,23 +467,6 @@ export function HomeView({ jobs, onViewBoard, onSelectJob }: HomeViewProps) {
         </div>
       </div>
 
-      {/* CTA Section */}
-      <div className="bg-indigo-600 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 transition-transform duration-1000 group-hover:scale-110" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-16 -mb-16 transition-transform duration-1000 group-hover:scale-110" />
-        
-        <div className="relative">
-          <h3 className="text-2xl font-bold">Get Started Today</h3>
-          <p className="text-indigo-100 mt-2">Ready to move some jobs to the next stage?</p>
-        </div>
-        
-        <button 
-          onClick={onViewBoard}
-          className="relative px-8 py-3 bg-white text-indigo-600 rounded-xl font-bold shadow-xl hover:shadow-2xl transition-all active:scale-95 whitespace-nowrap"
-        >
-          Open Board
-        </button>
-      </div>
     </div>
   );
 }

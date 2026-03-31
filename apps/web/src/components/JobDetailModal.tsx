@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Job, JobStatus, JobComment, JobPriority, WorkMode, JobStatusHistoryEntry } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
+import { matchResumeForJob, type MatchResumeResult, type MatchResumeResponse } from '../services/match';
 import { JobHealthPanel } from './JobHealthPanel';
+import { MatchScoreBadge } from './MatchScoreBadge';
 import {
   X, ExternalLink, Send,
   FileText, MoreVertical, Trash2, Copy, Check,
   User, Link2, ClipboardList, ChevronDown, ChevronUp,
-  Share2, Eye, Bolt
+  Share2, Eye, Bolt, Loader2
 } from 'lucide-react';
 
 interface JobDetailModalProps {
@@ -243,12 +245,41 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [descCopied, setDescCopied] = useState(false);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchResults, setMatchResults] = useState<MatchResumeResult[] | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const [matchMeta, setMatchMeta] = useState<Pick<MatchResumeResponse, 'resume_state' | 'total_resume_versions' | 'ready_resume_versions'> | null>(null);
+  const [latestResumeUpdatedAt, setLatestResumeUpdatedAt] = useState<string | null>(null);
 
   const handleCopyDescPrompt = () => {
     const prompt = `Read the docs, and edit the resume for the following role.\nRole:\n${localJob.job_title} - ${localJob.company}\n${localJob.job_description ?? ''}\n\nResume:\n`;
     navigator.clipboard.writeText(prompt);
     setDescCopied(true);
     setTimeout(() => setDescCopied(false), 2000);
+  };
+
+  const runMatch = async () => {
+    setMatchError(null);
+    setMatchLoading(true);
+    try {
+      const response = await matchResumeForJob(localJob.id);
+      setMatchResults(response.results);
+      setMatchMeta({
+        resume_state: response.resume_state,
+        total_resume_versions: response.total_resume_versions,
+        ready_resume_versions: response.ready_resume_versions,
+      });
+      setLocalJob(prev => ({
+        ...prev,
+        match_score: response.results[0]?.score ?? null,
+        match_score_updated_at: new Date().toISOString(),
+      }));
+      onUpdate();
+    } catch (err: any) {
+      setMatchError(err?.message ?? 'Failed to match resume.');
+    } finally {
+      setMatchLoading(false);
+    }
   };
   
   // Header Editing States
@@ -259,7 +290,35 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
   useEffect(() => {
     loadComments();
     loadStatusHistory();
+    loadLatestResumeVersion();
   }, [job.id]);
+
+  const loadLatestResumeVersion = async () => {
+    try {
+      const { data } = await supabase
+        .from('resume_versions')
+        .select('updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setLatestResumeUpdatedAt(data?.updated_at ?? null);
+    } catch {
+      setLatestResumeUpdatedAt(null);
+    }
+  };
+
+  const isMatchScoreStale = useMemo(() => {
+    if (localJob.match_score == null || !localJob.match_score_updated_at) return false;
+
+    const matchUpdatedAt = new Date(localJob.match_score_updated_at).getTime();
+    const isOlderThanWeek = Date.now() - matchUpdatedAt > 7 * 24 * 60 * 60 * 1000;
+    const hasNewerResume = latestResumeUpdatedAt
+      ? new Date(latestResumeUpdatedAt).getTime() > matchUpdatedAt
+      : false;
+
+    return isOlderThanWeek || hasNewerResume;
+  }, [latestResumeUpdatedAt, localJob.match_score, localJob.match_score_updated_at]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -510,6 +569,16 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
             </div>
 
             <div className="flex items-center gap-2 mb-8">
+              <MatchScoreBadge score={localJob.match_score} size="sm" stale={isMatchScoreStale} />
+              <button
+                onClick={runMatch}
+                disabled={matchLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[13px] font-semibold transition disabled:opacity-50"
+                title="Match Resume"
+              >
+                {matchLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bolt className="w-3.5 h-3.5" />}
+                Match Resume
+              </button>
               <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[13px] font-medium transition">
                 <Plus className="w-3.5 h-3.5" /> Add child work item
               </button>
@@ -517,6 +586,68 @@ export function JobDetailModal({ job, onClose, onUpdate }: JobDetailModalProps) 
                 <MoreVertical className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {(matchError || matchResults) && (
+              <div className="mb-8 border border-slate-200 rounded-lg p-4 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <Bolt className="w-4 h-4 text-blue-600" />
+                    Top matches
+                  </div>
+                  {matchResults && (
+                    <div className="text-xs text-slate-500 font-medium">
+                      {matchResults.length} shown
+                      {isMatchScoreStale ? ' • stale' : ''}
+                    </div>
+                  )}
+                </div>
+
+                {matchError && (
+                  <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-md p-2">
+                    {matchError}
+                  </div>
+                )}
+
+                {matchResults && matchResults.length === 0 && matchMeta?.resume_state === 'empty' && (
+                  <div className="text-sm text-slate-600">
+                    You do not have any resume versions yet. Upload a PDF resume in your profile to enable matching.
+                  </div>
+                )}
+
+                {matchResults && matchResults.length === 0 && matchMeta?.resume_state === 'processing' && (
+                  <div className="text-sm text-slate-600">
+                    Your resume uploads are still processing. Try matching again once at least one resume reaches the ready state.
+                  </div>
+                )}
+
+                {matchResults && matchResults.length === 0 && (!matchMeta || matchMeta.resume_state === 'ready') && (
+                  <div className="text-sm text-slate-600">
+                    No resume versions are ready yet. Upload a PDF resume in your profile.
+                  </div>
+                )}
+
+                {matchResults && matchResults.length > 0 && (
+                  <div className="space-y-2">
+                    {matchResults.slice(0, 5).map((r) => (
+                      <div key={r.resume_version_id} className="flex items-start justify-between gap-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-900 truncate">{r.label}</div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            Missing: {r.missing_keywords.slice(0, 8).join(', ') || '—'}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          <div className="text-sm font-extrabold text-slate-900">{Math.round(r.score)}%</div>
+                          <div className="text-[10px] text-slate-400">
+                            semantic {Math.round(r.semantic_sim * 100)}%
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <CollapsibleSection
               title="Description"

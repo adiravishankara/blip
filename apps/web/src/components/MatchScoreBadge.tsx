@@ -1,9 +1,10 @@
 interface MatchScoreBadgeProps {
   score?: number | null;
   size?: 'xs' | 'sm' | 'md';
+  stale?: boolean;
 }
 
-export function MatchScoreBadge({ score, size = 'sm' }: MatchScoreBadgeProps) {
+export function MatchScoreBadge({ score, size = 'sm', stale = false }: MatchScoreBadgeProps) {
   if (score == null) return null;
 
   const rounded = Math.round(score);
@@ -24,9 +25,9 @@ export function MatchScoreBadge({ score, size = 'sm' }: MatchScoreBadgeProps) {
         size === 'xs' ? 'text-[9px] px-1 py-0' :
         isSmall ? 'text-xs px-2 py-0.5' : 'text-sm px-3 py-1'
       }`}
-      title="Match score against your profile"
+      title={stale ? 'Match score may be stale. Re-run match to refresh it.' : 'Match score against your profile'}
     >
-      <span className={isSmall ? 'text-[10px]' : 'text-xs'}>⚡</span>
+      <span className={isSmall ? 'text-[10px]' : 'text-xs'}>{stale ? '!' : '⚡'}</span>
       {rounded}%
     </span>
   );
