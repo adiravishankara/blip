@@ -2,6 +2,25 @@ function normalizeText(value: string | null | undefined) {
   return (value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+function sanitizePossibleCode(value: string) {
+  const text = normalizeText(value);
+  if (!text) return '';
+
+  const codeIndicators = [
+    'import(',
+    'document.currentScript',
+    'Promise.all([',
+    'kit.start(',
+    'function ',
+    ' => {',
+  ];
+
+  if (codeIndicators.some((token) => text.includes(token))) return '';
+  if (text.length > 200 && /[{}`;]/.test(text)) return '';
+
+  return text;
+}
+
 function queryText(selectors: string[]) {
   for (const selector of selectors) {
     const element = document.querySelector(selector);
@@ -157,6 +176,30 @@ function inferTitle() {
     ]) || normalizeText(document.title);
   }
 
+  if (host.includes('amazon.jobs')) {
+    const amazonTitle =
+      queryText([
+        'h1',
+      ]) ||
+      normalizeText(
+        document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content ?? ''
+      );
+    if (amazonTitle) return amazonTitle;
+  }
+
+  if (host.includes('zipline.com')) {
+    const zipTitle =
+      queryText([
+        'h1',
+        '[data-testid="job-title"]',
+        '[data-component="job-title"]',
+      ]) ||
+      normalizeText(
+        document.title.replace(/^Open Roles\s*\|\s*/i, '')
+      );
+    return zipTitle;
+  }
+
   return (
     findLabeledValue(['job_title', 'job title', 'role']) ||
     queryText(['h1']) ||
@@ -218,10 +261,19 @@ function inferLocation() {
     ]);
   }
 
-  return findLabeledValue(['job_location', 'job location', 'location', 'office_location', 'office location']);
+  const generic = findLabeledValue(['job_location', 'job location', 'location', 'office_location', 'office location']);
+  return sanitizePossibleCode(generic);
 }
 
 function inferRoleUrl() {
+  const host = window.location.hostname;
+
+  // Some sites (like Zipline) use a generic canonical/og:url for all job pages.
+  // For those, prefer the actual browser URL so we keep the specific job id.
+  if (host.includes('zipline.com')) {
+    return window.location.href;
+  }
+
   const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href;
   const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.content;
   return canonical || ogUrl || window.location.href;
