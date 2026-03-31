@@ -5,6 +5,7 @@ export interface ResumeVersionSummary {
   label: string;
   storage_path: string;
   embedding_status: 'pending' | 'processing' | 'ready' | 'error';
+  embedding_model?: string | null;
   updated_at: string;
   created_at: string;
 }
@@ -21,12 +22,39 @@ export async function processResumeVersion(resumeVersionId: string) {
 export async function fetchResumeVersion(resumeVersionId: string): Promise<ResumeVersionSummary | null> {
   const { data, error } = await supabase
     .from('resume_versions')
-    .select('id,label,storage_path,embedding_status,updated_at,created_at')
+    .select('id,label,storage_path,embedding_status,embedding_model,updated_at,created_at')
     .eq('id', resumeVersionId)
     .maybeSingle();
 
   if (error) throw error;
   return (data ?? null) as ResumeVersionSummary | null;
+}
+
+export async function updateResumeVersionLabel(resumeVersionId: string, label: string) {
+  const { error } = await supabase
+    .from('resume_versions')
+    .update({
+      label,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', resumeVersionId);
+
+  if (error) throw error;
+}
+
+export async function deleteResumeVersion(resume: ResumeVersionSummary) {
+  const { error: storageError } = await supabase.storage
+    .from('resumes')
+    .remove([resume.storage_path]);
+
+  if (storageError) throw storageError;
+
+  const { error: deleteRowError } = await supabase
+    .from('resume_versions')
+    .delete()
+    .eq('id', resume.id);
+
+  if (deleteRowError) throw deleteRowError;
 }
 
 export async function waitForResumeProcessing(

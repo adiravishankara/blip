@@ -11,6 +11,115 @@ function queryText(selectors: string[]) {
   return '';
 }
 
+function splitLabelValue(text: string) {
+  const normalized = normalizeText(text);
+  const separators = [':', '\n', ' - ', ' | '];
+
+  for (const separator of separators) {
+    const idx = normalized.toLowerCase().indexOf(separator.trim().toLowerCase());
+    if (idx === -1) continue;
+
+    if (separator === '\n') {
+      const parts = normalized.split('\n').map((part) => normalizeText(part)).filter(Boolean);
+      if (parts.length >= 2) {
+        return {
+          label: parts[0].toLowerCase(),
+          value: parts.slice(1).join(' '),
+        };
+      }
+      continue;
+    }
+
+    const parts = normalized.split(separator);
+    if (parts.length >= 2) {
+      return {
+        label: normalizeText(parts[0]).toLowerCase(),
+        value: normalizeText(parts.slice(1).join(separator)),
+      };
+    }
+  }
+
+  return null;
+}
+
+function findLabeledValue(possibleLabels: string[]) {
+  const labels = possibleLabels.map((label) => label.toLowerCase());
+  const selector = [
+    '[data-testid]',
+    '[data-test]',
+    '[data-qa]',
+    '[data-role]',
+    '[aria-label]',
+    '[class]',
+    '[id]',
+    'dt',
+    'th',
+    'label',
+    'strong',
+    'b',
+    'span',
+    'div',
+    'li',
+    'p',
+  ].join(',');
+
+  const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
+
+  for (const element of elements) {
+    const joinedMetadata = [
+      element.id,
+      element.className,
+      element.getAttribute('data-testid'),
+      element.getAttribute('data-test'),
+      element.getAttribute('data-qa'),
+      element.getAttribute('data-role'),
+      element.getAttribute('aria-label'),
+      element.getAttribute('name'),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    if (labels.some((label) => joinedMetadata.includes(label.replace(/\s+/g, '_')) || joinedMetadata.includes(label.replace(/\s+/g, '-')) || joinedMetadata.includes(label))) {
+      const ownText = normalizeText(element.textContent);
+      const pair = splitLabelValue(ownText);
+      if (pair && labels.some((label) => pair.label.includes(label))) {
+        return pair.value;
+      }
+
+      const siblingText = normalizeText(element.nextElementSibling?.textContent);
+      if (siblingText) return siblingText;
+
+      const parentText = normalizeText(element.parentElement?.textContent);
+      const parentPair = splitLabelValue(parentText);
+      if (parentPair && labels.some((label) => parentPair.label.includes(label))) {
+        return parentPair.value;
+      }
+
+      if (ownText && !labels.some((label) => ownText.toLowerCase() === label)) {
+        return ownText;
+      }
+    }
+  }
+
+  const textNodes = Array.from(document.querySelectorAll<HTMLElement>('dt, th, label, strong, b, span, div, li, p'));
+  for (const element of textNodes) {
+    const text = normalizeText(element.textContent);
+    const lower = text.toLowerCase();
+    if (!labels.some((label) => lower.startsWith(label))) continue;
+
+    const pair = splitLabelValue(text);
+    if (pair && labels.some((label) => pair.label.includes(label))) {
+      return pair.value;
+    }
+
+    const siblingText = normalizeText(element.nextElementSibling?.textContent);
+    if (siblingText) return siblingText;
+  }
+
+  return '';
+}
+
 function hostnameLabel() {
   const hostname = window.location.hostname.replace(/^www\./, '');
   if (hostname.includes('apple.com')) return 'Apple';
@@ -48,7 +157,11 @@ function inferTitle() {
     ]) || normalizeText(document.title);
   }
 
-  return queryText(['h1']) || normalizeText(document.title);
+  return (
+    findLabeledValue(['job_title', 'job title', 'role']) ||
+    queryText(['h1']) ||
+    normalizeText(document.title)
+  );
 }
 
 function inferCompany() {
@@ -105,7 +218,7 @@ function inferLocation() {
     ]);
   }
 
-  return '';
+  return findLabeledValue(['job_location', 'job location', 'location', 'office_location', 'office location']);
 }
 
 function inferRoleUrl() {

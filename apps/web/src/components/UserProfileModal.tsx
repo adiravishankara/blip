@@ -4,15 +4,17 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { resolveResumeUrl } from '../utils/storage';
 import {
+  deleteResumeVersion,
   fetchResumeVersion,
   processResumeVersion,
   type ResumeVersionSummary,
+  updateResumeVersionLabel,
   waitForResumeProcessing,
 } from '../services/resumeProcessing';
 import { CityAutocomplete } from './CityAutocomplete';
 import {
   X, Plus, Trash2, Save, User, MapPin, DollarSign, Briefcase,
-  Link2, FileText, Loader2, Upload,
+  Link2, FileText, Loader2, Upload, Pencil, CheckCircle2, AlertCircle, RefreshCw,
 } from 'lucide-react';
 
 interface UserProfileModalProps {
@@ -114,6 +116,9 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
   const [resumeVersionLabel, setResumeVersionLabel] = useState('Primary');
   const [uploadingResume, setUploadingResume] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
+  const [editingResumeLabel, setEditingResumeLabel] = useState('');
+  const [resumeActionId, setResumeActionId] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
@@ -170,7 +175,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
     try {
       const { data, error } = await supabase
         .from('resume_versions')
-        .select('id,label,storage_path,embedding_status,updated_at,created_at')
+        .select('id,label,storage_path,embedding_status,embedding_model,updated_at,created_at')
         .order('created_at', { ascending: false });
 
       if (error) return;
@@ -268,6 +273,82 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
 
   const removeResumeLink = (i: number) => {
     setProfile(p => ({ ...p, resume_links: (p.resume_links ?? []).filter((_, j) => j !== i) }));
+  };
+
+  const getResumeStatusTone = (status: ResumeVersionSummary['embedding_status']) => {
+    if (status === 'ready') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'error') return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (status === 'processing') return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
+  };
+
+  const getResumeStatusIcon = (status: ResumeVersionSummary['embedding_status']) => {
+    if (status === 'ready') return <CheckCircle2 className="w-3.5 h-3.5" />;
+    if (status === 'error') return <AlertCircle className="w-3.5 h-3.5" />;
+    return <Loader2 className="w-3.5 h-3.5 animate-spin" />;
+  };
+
+  const formatResumeDate = (value: string) =>
+    new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+
+  const getResumeFilename = (storagePath: string) => storagePath.split('/').pop() || storagePath;
+
+  const handleStartEditResume = (resume: ResumeVersionSummary) => {
+    setEditingResumeId(resume.id);
+    setEditingResumeLabel(resume.label);
+  };
+
+  const handleSaveResumeLabel = async (resumeId: string) => {
+    const label = editingResumeLabel.trim();
+    if (!label) return;
+
+    setResumeActionId(resumeId);
+    try {
+      await updateResumeVersionLabel(resumeId, label);
+      await loadResumeVersions();
+      setEditingResumeId(null);
+      setEditingResumeLabel('');
+    } catch (err: any) {
+      setUploadError(err?.message ?? 'Failed to rename resume.');
+    } finally {
+      setResumeActionId(null);
+    }
+  };
+
+  const handleDeleteResume = async (resume: ResumeVersionSummary) => {
+    if (!confirm(`Delete "${resume.label}"? This removes the stored file and its embeddings.`)) return;
+
+    setResumeActionId(resume.id);
+    try {
+      await deleteResumeVersion(resume);
+      await loadResumeVersions();
+      if (editingResumeId === resume.id) {
+        setEditingResumeId(null);
+        setEditingResumeLabel('');
+      }
+    } catch (err: any) {
+      setUploadError(err?.message ?? 'Failed to delete resume.');
+    } finally {
+      setResumeActionId(null);
+    }
+  };
+
+  const handleRetryResume = async (resume: ResumeVersionSummary) => {
+    setResumeActionId(resume.id);
+    setUploadError(null);
+    try {
+      await processResumeVersion(resume.id);
+      await waitForResumeProcessing(resume.id, {
+        onTick: async () => {
+          await loadResumeVersions();
+        },
+      });
+      await loadResumeVersions();
+    } catch (err: any) {
+      setUploadError(err?.message ?? 'Failed to reprocess resume.');
+    } finally {
+      setResumeActionId(null);
+    }
   };
 
   return (
@@ -463,14 +544,90 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
                 )}
 
                 {(resumeVersions ?? []).length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {resumeVersions.map((rv) => (
-                      <div key={rv.id} className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-lg">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 truncate">{rv.label}</div>
-                          <div className="text-xs text-gray-500 truncate">{rv.embedding_status}</div>
+                      <div key={rv.id} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            {editingResumeId === rv.id ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={editingResumeLabel}
+                                  onChange={e => setEditingResumeLabel(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      void handleSaveResumeLabel(rv.id);
+                                    }
+                                    if (e.key === 'Escape') {
+                                      setEditingResumeId(null);
+                                      setEditingResumeLabel('');
+                                    }
+                                  }}
+                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={resumeActionId === rv.id}
+                                  onClick={() => void handleSaveResumeLabel(rv.id)}
+                                  className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {resumeActionId === rv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="text-sm font-semibold text-gray-900 truncate">{rv.label}</div>
+                            )}
+                            <div className="text-xs text-gray-500 truncate mt-1">{getResumeFilename(rv.storage_path)}</div>
+                          </div>
+                          <div className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getResumeStatusTone(rv.embedding_status)}`}>
+                            {getResumeStatusIcon(rv.embedding_status)}
+                            {rv.embedding_status}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-400 font-mono">{String(rv.id).slice(0, 8)}</div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-500">
+                          <div>Uploaded {formatResumeDate(rv.created_at)}</div>
+                          <div>Updated {formatResumeDate(rv.updated_at)}</div>
+                          <div>Model {rv.embedding_model ?? 'pending'}</div>
+                          <div className="font-mono">{String(rv.id).slice(0, 8)}</div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {editingResumeId !== rv.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditResume(rv)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium text-gray-700 hover:bg-white"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Rename
+                            </button>
+                          )}
+
+                          {(rv.embedding_status === 'error' || rv.embedding_status === 'pending') && (
+                            <button
+                              type="button"
+                              disabled={resumeActionId === rv.id}
+                              onClick={() => void handleRetryResume(rv)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              {resumeActionId === rv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                              Reprocess
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={resumeActionId === rv.id}
+                            onClick={() => void handleDeleteResume(rv)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                          >
+                            {resumeActionId === rv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

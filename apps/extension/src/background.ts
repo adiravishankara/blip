@@ -1,6 +1,10 @@
 import { getSettings, setPendingCapture } from './lib/storage';
 import type { CaptureAction, ContentCaptureResponse, PendingCaptureState } from './types';
 
+function isSupportedCaptureUrl(url: string) {
+  return /^https?:\/\//i.test(url);
+}
+
 async function ensureMenus() {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
@@ -26,13 +30,31 @@ async function openPanel(tabId: number) {
 }
 
 async function captureFromTab(tabId: number, selectionText: string, action: CaptureAction) {
-  const response = await chrome.tabs.sendMessage(tabId, {
+  const message = {
     type: 'BLIP_CAPTURE_CONTEXT',
     selectionText,
     action,
-  });
+  } as const;
 
-  return response as ContentCaptureResponse | undefined;
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, message);
+    return response as ContentCaptureResponse | undefined;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const missingReceiver =
+      errorMessage.includes('Receiving end does not exist') ||
+      errorMessage.includes('Could not establish connection');
+
+    if (!missingReceiver) throw error;
+
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['assets/content.js'],
+    });
+
+    const response = await chrome.tabs.sendMessage(tabId, message);
+    return response as ContentCaptureResponse | undefined;
+  }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -41,6 +63,12 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   }
 });
+
+chrome.runtime.onStartup?.addListener(async () => {
+  await ensureMenus();
+});
+
+void ensureMenus();
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id || !tab.url) return;
@@ -51,6 +79,28 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     : null;
 
   if (!action) return;
+
+  if (!isSupportedCaptureUrl(tab.url)) {
+    await setPendingCapture({
+      status: 'error',
+      capture: {
+        id: crypto.randomUUID(),
+        action,
+        selectionText: (info.selectionText ?? '').trim(),
+        pageUrl: tab.url,
+        pageTitle: tab.title ?? '',
+        roleUrl: tab.url,
+        jobTitle: tab.title ?? 'Untitled Role',
+        company: '',
+        location: '',
+        rawCapture: { reason: 'unsupported_url' },
+        createdAt: new Date().toISOString(),
+      },
+      error: 'Blip only works on standard http/https pages.',
+    });
+    await openPanel(tab.id);
+    return;
+  }
 
   const settings = await getSettings();
   const selectedText = (info.selectionText ?? '').trim();

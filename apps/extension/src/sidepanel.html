@@ -128,6 +128,12 @@
         word-break: break-word;
       }
 
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
       .results {
         display: flex;
         flex-direction: column;
@@ -202,9 +208,54 @@
         margin-top: 14px;
       }
 
+      .account-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      .account-primary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #2457ea, #5a88ff);
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 16px;
+        box-shadow: 0 12px 20px rgba(36, 87, 234, 0.2);
+      }
+
+      .account-meta {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .account-email {
+        font-size: 15px;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
       a.link {
         color: var(--blue);
         text-decoration: none;
+      }
+
+      [data-hidden="true"] {
+        display: none !important;
       }
     </style>
   </head>
@@ -223,13 +274,32 @@
           </div>
           <span id="account-pill" class="pill gray">Signed out</span>
         </div>
-        <div id="auth-form" class="stack" style="margin-top: 14px;">
+        <div id="auth-form" class="stack" style="margin-top: 14px;" data-hidden="false">
           <input id="email" type="email" placeholder="you@example.com" />
           <input id="password" type="password" placeholder="Password" />
           <button id="sign-in-btn" class="primary">Sign In</button>
         </div>
-        <div id="account-actions" class="actions" hidden>
-          <button id="sign-out-btn" class="secondary">Sign Out</button>
+        <div id="signed-in-panel" class="stack" style="margin-top: 14px;" data-hidden="true">
+          <div class="field">
+            <div class="account-primary">
+              <div class="avatar" id="account-avatar">B</div>
+              <div class="account-meta">
+                <div id="account-email-full" class="account-email"></div>
+                <div class="small">Connected to your Blip account</div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-label">Supabase Connection</div>
+            <div id="supabase-connection" class="field-value">Checking connection...</div>
+            <div id="supabase-connection-detail" class="small" style="margin-top: 6px;"></div>
+          </div>
+          <div id="account-actions" class="account-actions">
+            <button id="open-profile-btn" class="primary">Open Profile</button>
+            <button id="open-app-btn" class="secondary">Open Blip</button>
+            <button id="open-settings-btn" class="secondary">Extension Settings</button>
+            <button id="sign-out-btn" class="secondary">Sign Out</button>
+          </div>
         </div>
         <div id="auth-status" class="status"></div>
       </section>

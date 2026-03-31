@@ -2,15 +2,24 @@ import { getPendingCapture, setPendingCapture } from './lib/storage';
 import { createJobFromCapture, getBlipWebUrl, matchResumeForJob, supabase } from './lib/supabase';
 import type { MatchResponse, PendingCaptureState } from './types';
 
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
 const authForm = document.querySelector<HTMLDivElement>('#auth-form')!;
+const signedInPanel = document.querySelector<HTMLDivElement>('#signed-in-panel')!;
 const accountActions = document.querySelector<HTMLDivElement>('#account-actions')!;
 const signInButton = document.querySelector<HTMLButtonElement>('#sign-in-btn')!;
 const signOutButton = document.querySelector<HTMLButtonElement>('#sign-out-btn')!;
+const openProfileButton = document.querySelector<HTMLButtonElement>('#open-profile-btn')!;
+const openAppButton = document.querySelector<HTMLButtonElement>('#open-app-btn')!;
+const openSettingsButton = document.querySelector<HTMLButtonElement>('#open-settings-btn')!;
 const emailInput = document.querySelector<HTMLInputElement>('#email')!;
 const passwordInput = document.querySelector<HTMLInputElement>('#password')!;
 const authStatus = document.querySelector<HTMLDivElement>('#auth-status')!;
 const accountCopy = document.querySelector<HTMLDivElement>('#account-copy')!;
 const accountPill = document.querySelector<HTMLSpanElement>('#account-pill')!;
+const accountAvatar = document.querySelector<HTMLDivElement>('#account-avatar')!;
+const accountEmailFull = document.querySelector<HTMLDivElement>('#account-email-full')!;
+const supabaseConnection = document.querySelector<HTMLDivElement>('#supabase-connection')!;
+const supabaseConnectionDetail = document.querySelector<HTMLDivElement>('#supabase-connection-detail')!;
 const capturePill = document.querySelector<HTMLSpanElement>('#capture-pill')!;
 const captureBody = document.querySelector<HTMLDivElement>('#capture-body')!;
 
@@ -26,6 +35,10 @@ function pill(element: HTMLElement, label: string, tone: 'gray' | 'blue' | 'gree
   element.className = `pill ${tone}`;
 }
 
+function toggleVisibility(element: HTMLElement, visible: boolean) {
+  element.dataset.hidden = visible ? 'false' : 'true';
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -33,6 +46,31 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function inferSupabaseKind(url: string) {
+  return /localhost|127\.0\.0\.1/i.test(url) ? 'Local Supabase' : 'Cloud Supabase';
+}
+
+async function checkSupabaseConnection() {
+  try {
+    const { error } = await supabase.from('jobs').select('id').limit(1);
+
+    if (error && !String(error.message).toLowerCase().includes('permission')) {
+      supabaseConnection.textContent = 'Connection error';
+      supabaseConnection.style.color = 'var(--rose)';
+      supabaseConnectionDetail.textContent = `${inferSupabaseKind(supabaseUrl)} • ${error.message}`;
+      return;
+    }
+
+    supabaseConnection.textContent = 'Connected';
+    supabaseConnection.style.color = 'var(--emerald)';
+    supabaseConnectionDetail.textContent = `${inferSupabaseKind(supabaseUrl)} • ${supabaseUrl}`;
+  } catch (error) {
+    supabaseConnection.textContent = 'Connection error';
+    supabaseConnection.style.color = 'var(--rose)';
+    supabaseConnectionDetail.textContent = `${inferSupabaseKind(supabaseUrl)} • ${error instanceof Error ? error.message : 'Connection failed'}`;
+  }
 }
 
 function renderCapture(state: PendingCaptureState | null) {
@@ -145,10 +183,13 @@ async function refreshAccount() {
   } = await supabase.auth.getSession();
 
   const user = session?.user ?? null;
-  authForm.hidden = Boolean(user);
-  accountActions.hidden = !user;
+  toggleVisibility(authForm, !user);
+  toggleVisibility(signedInPanel, Boolean(user));
   accountCopy.textContent = user?.email ?? 'Sign in once and Blip will process captures automatically.';
   pill(accountPill, user ? 'Signed in' : 'Signed out', user ? 'green' : 'gray');
+  accountAvatar.textContent = (user?.email?.[0] ?? 'B').toUpperCase();
+  accountEmailFull.textContent = user?.email ?? '';
+  await checkSupabaseConnection();
   return user;
 }
 
@@ -215,6 +256,18 @@ signOutButton.addEventListener('click', async () => {
   } catch (error) {
     setStatus(authStatus, error instanceof Error ? error.message : 'Could not sign out.', 'bad');
   }
+});
+
+openAppButton.addEventListener('click', () => {
+  chrome.tabs.create({ url: getBlipWebUrl() });
+});
+
+openProfileButton.addEventListener('click', () => {
+  chrome.tabs.create({ url: `${getBlipWebUrl()}?profile=1` });
+});
+
+openSettingsButton.addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
 });
 
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
