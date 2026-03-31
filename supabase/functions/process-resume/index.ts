@@ -1,5 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import * as pdfjsLib from 'npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs';
+// Load pdfjs from a remote URL instead of bundling the full npm package.
+// This keeps the edge function bundle small enough for Supabase limits.
+import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.mjs';
 import { createAuthedClient } from '../_shared/supabaseClient.ts';
 
 const session = new Supabase.ai.Session('gte-small');
